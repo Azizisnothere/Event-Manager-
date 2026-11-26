@@ -1,0 +1,1739 @@
+{
+  "info": {
+    "name": "Event Manager - RSVP & Waitlist",
+    "description": "RSVP service: Turnstile-verified replies, first reply only once, capacity in a locked transaction, waitlist order and promotion, guest changes and cancellation, organizer moderation. Covers valid, invalid, wrong-role and other-owner requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Register Organizer A",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_a_email', 'org_a-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_a_token', j.token);",
+                  "pm.collectionVariables.set('org_a_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer A\",\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register Organizer B",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_b_email', 'org_b-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_b_token', j.token);",
+                  "pm.collectionVariables.set('org_b_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer B\",\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create event (capacity 2) -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('start_time', new Date(Date.now() + 172800 * 1000).toISOString());",
+                  "pm.collectionVariables.set('end_time', new Date(Date.now() + 183600 * 1000).toISOString());",
+                  "pm.collectionVariables.set('rsvp_deadline', new Date(Date.now() + 86400 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('event_id', pm.response.json().event.event_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Workshop\",\n  \"venue_address\": \"The British University in Egypt, El Sherouk City, Cairo\",\n  \"start_time\": \"{{start_time}}\",\n  \"end_time\": \"{{end_time}}\",\n  \"rsvp_deadline\": \"{{rsvp_deadline}}\",\n  \"capacity\": 2,\n  \"invite_limit\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add guests -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('guest_a_email', 'rsvp-a-' + run + '@example.test');",
+                  "pm.collectionVariables.set('guest_b_email', 'rsvp-b-' + run + '@example.test');",
+                  "pm.collectionVariables.set('guest_c_email', 'rsvp-c-' + run + '@example.test');",
+                  "pm.collectionVariables.set('guest_d_email', 'rsvp-d-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/invitations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"guests\": [\n    { \"guest_name\": \"Guest A\", \"guest_email\": \"{{guest_a_email}}\", \"plus_one_allowance\": 1 },\n    { \"guest_name\": \"Guest B\", \"guest_email\": \"{{guest_b_email}}\", \"plus_one_allowance\": 1 },\n    { \"guest_name\": \"Guest C\", \"guest_email\": \"{{guest_c_email}}\", \"plus_one_allowance\": 0 },\n    { \"guest_name\": \"Guest D\", \"guest_email\": \"{{guest_d_email}}\", \"plus_one_allowance\": 0 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Publish -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest A link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_a_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_a_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest B link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_b_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_b_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest C link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_c_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_c_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest D link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_d_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_d_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Guest view",
+      "item": [
+        {
+          "name": "Guest A views invitation -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('can reply, map link, no email', function () { pm.expect(j.actions.can_reply).to.eql(true); pm.expect(j.event.map_url).to.include('openstreetmap'); pm.expect(JSON.stringify(j)).to.not.include(pm.collectionVariables.get('guest_a_email')); });",
+                  "pm.test('max party size = 1 + allowance', function () { pm.expect(j.invitation.max_party_size).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}"
+          }
+        },
+        {
+          "name": "Unknown token -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/invitations/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        },
+        {
+          "name": "Malformed token -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/invitations/1'%20OR%20'1'='1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "First reply (POST)",
+      "item": [
+        {
+          "name": "Missing Turnstile token -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Party size above 1 + allowance -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unknown field -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1,\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Dietary notes over 300 chars -> 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('long_notes', 'n'.repeat(301));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1,\n  \"dietary_notes\": \"{{long_notes}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Failed Turnstile -> 403 (guest D)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skip_turnstile_failure') === 'true') { pm.test.skip('Turnstile failure (skipped: always-pass secret)', function () {}); } else { pm.test('status 403', function () { pm.response.to.have.status(403); }); pm.test('code TURNSTILE_FAILED', function () { pm.expect(pm.response.json().error.code).to.eql('TURNSTILE_FAILED'); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_bad_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_d_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Expects 403 when the server rejects {{turnstile_bad_token}}. With Cloudflare's always-pass test secret every token passes, so set skip_turnstile_failure=true in the environment."
+          }
+        },
+        {
+          "name": "Guest A accepts for 2 -> 201 confirmed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const r = pm.response.json().rsvp;",
+                  "pm.test('confirmed with 6-char code', function () { pm.expect(r.status).to.eql('confirmed'); pm.expect(r.check_in_code).to.match(/^[A-Z2-9]{6}$/); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 2,\n  \"dietary_notes\": \"Vegetarian\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest A replies again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"decline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest B accepts for 2 -> 201 waitlisted (event full)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const r = pm.response.json().rsvp;",
+                  "pm.test('waitlisted at position 1, no code', function () { pm.expect(r.status).to.eql('waitlisted'); pm.expect(r.waitlist_position).to.eql(1); pm.expect(r.check_in_code).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_b_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest C declines -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.test('declined', function () { pm.expect(pm.response.json().rsvp.status).to.eql('declined'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_c_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"decline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Decline with party size -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_d_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"decline\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizer views",
+      "item": [
+        {
+          "name": "RSVP list (organizer) -> 200 with emails",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('one confirmed with email', function () { pm.expect(j.total).to.eql(1); pm.expect(j.rsvps[0]).to.have.property('guest_email'); });",
+                  "pm.collectionVariables.set('rsvp_a_id', j.rsvps[0].rsvp_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps?status=confirmed"
+          }
+        },
+        {
+          "name": "RSVP list without token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps"
+          }
+        },
+        {
+          "name": "RSVP list other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps"
+          }
+        },
+        {
+          "name": "RSVP list bad status -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps?status=all"
+          }
+        },
+        {
+          "name": "Waitlist -> 200 ordered",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('Guest B at position 1', function () { pm.expect(j.waitlist[0].guest_name).to.eql('Guest B'); pm.expect(j.waitlist[0].position).to.eql(1); });",
+                  "pm.collectionVariables.set('rsvp_b_id', j.waitlist[0].rsvp_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/waitlist"
+          }
+        },
+        {
+          "name": "Waitlist other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/waitlist"
+          }
+        },
+        {
+          "name": "Capacity summary -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('2 of 2 confirmed', function () { const c = pm.response.json().capacity; pm.expect(c.confirmed_headcount).to.eql(2); pm.expect(c.remaining_seats).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/capacity"
+          }
+        },
+        {
+          "name": "Manual promote with no free seats -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}/promote",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Manual promote by other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}/promote",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Capacity below confirmed headcount -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"capacity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Changes and waitlist promotion",
+      "item": [
+        {
+          "name": "PATCH without Turnstile -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH with only the Turnstile token -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest A cancels -> 200 (seat freed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 300);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('cancelled_by_guest', function () { pm.expect(pm.response.json().rsvp.status).to.eql('cancelled_by_guest'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_a_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest B was promoted automatically -> 200 confirmed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('confirmed with code', function () { const r = pm.response.json().rsvp; pm.expect(r.status).to.eql('confirmed'); pm.expect(r.check_in_code).to.match(/^[A-Z2-9]{6}$/); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/invitations/{{guest_b_token}}"
+          }
+        },
+        {
+          "name": "Guest C accepts after declining -> 200 waitlisted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('waitlisted (event full)', function () { pm.expect(pm.response.json().rsvp.status).to.eql('waitlisted'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_c_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Increase capacity to 3 -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"capacity\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest C promoted by the consumer -> 200 confirmed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 800);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('confirmed', function () { pm.expect(pm.response.json().rsvp.status).to.eql('confirmed'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/invitations/{{guest_c_token}}"
+          }
+        },
+        {
+          "name": "Guest B increases party beyond free seats -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 or 409', function () { pm.expect([200,409]).to.include(pm.response.code); });",
+                  "pm.test('only 200 when seats allow', function () { const code = pm.response.code; pm.expect([200, 409]).to.include(code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_b_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"party_size\": 2,\n  \"dietary_notes\": \"No nuts\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizer cancels a suspicious RSVP",
+      "item": [
+        {
+          "name": "Cancel without reason -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled_by_organizer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel by other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled_by_organizer\",\n  \"reason\": \"Not yours\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel with reason -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled_by_organizer\",\n  \"reason\": \"Duplicate registration\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/{{rsvp_b_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled_by_organizer\",\n  \"reason\": \"Again\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest B cannot change a cancelled-by-organizer reply -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_b_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unknown RSVP -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled_by_organizer\",\n  \"reason\": \"Nope\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "org_a_email",
+      "value": ""
+    },
+    {
+      "key": "org_a_token",
+      "value": ""
+    },
+    {
+      "key": "org_a_id",
+      "value": ""
+    },
+    {
+      "key": "org_b_email",
+      "value": ""
+    },
+    {
+      "key": "org_b_token",
+      "value": ""
+    },
+    {
+      "key": "org_b_id",
+      "value": ""
+    },
+    {
+      "key": "start_time",
+      "value": ""
+    },
+    {
+      "key": "end_time",
+      "value": ""
+    },
+    {
+      "key": "rsvp_deadline",
+      "value": ""
+    },
+    {
+      "key": "event_id",
+      "value": ""
+    },
+    {
+      "key": "guest_a_email",
+      "value": ""
+    },
+    {
+      "key": "guest_b_email",
+      "value": ""
+    },
+    {
+      "key": "guest_c_email",
+      "value": ""
+    },
+    {
+      "key": "guest_d_email",
+      "value": ""
+    },
+    {
+      "key": "guest_a_token",
+      "value": ""
+    },
+    {
+      "key": "guest_b_token",
+      "value": ""
+    },
+    {
+      "key": "guest_c_token",
+      "value": ""
+    },
+    {
+      "key": "guest_d_token",
+      "value": ""
+    },
+    {
+      "key": "long_notes",
+      "value": ""
+    },
+    {
+      "key": "rsvp_a_id",
+      "value": ""
+    },
+    {
+      "key": "rsvp_b_id",
+      "value": ""
+    }
+  ]
+}

@@ -1,0 +1,1140 @@
+{
+  "info": {
+    "name": "Event Manager - Auth",
+    "description": "Auth service: register, login (generic errors, 429 after 5 failures), JWT checks (HS256 only), staff setup (single-use). Uses {{base_url}} and {{password}} from the environment. Steps reading \"dev outbox\" only work against dev-server.js (npm run dev).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('database ok', function () { pm.expect(pm.response.json().checks.database).to.eql('ok'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Register",
+      "item": [
+        {
+          "name": "Register Organizer A",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_a_email', 'org_a-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_a_token', j.token);",
+                  "pm.collectionVariables.set('org_a_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer A\",\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register duplicate email (case-insensitive) -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dup\",\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register short password -> 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Short\",\n  \"email\": \"short-{{run_id}}@example.test\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register as staff via extra role field (wrong role) -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sneaky\",\n  \"email\": \"sneaky-{{run_id}}@example.test\",\n  \"password\": \"{{password}}\",\n  \"role\": \"staff\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register invalid email -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad\",\n  \"email\": \"not-an-email\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register malformed JSON -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": ",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register Organizer B",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_b_email', 'org_b-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_b_token', j.token);",
+                  "pm.collectionVariables.set('org_b_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer B\",\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "item": [
+        {
+          "name": "Login valid -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('bearer token, 1 hour', function () { pm.expect(j.token_type).to.eql('Bearer'); pm.expect(j.expires_in).to.eql(3600); });",
+                  "pm.test('JWT is HS256 with user_id and role only', function () { const parts = j.token.split('.'); const h = JSON.parse(atob(parts[0].replace(/-/g,'+').replace(/_/g,'/'))); const p = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/'))); pm.expect(h.alg).to.eql('HS256'); pm.expect(Object.keys(p).sort()).to.eql(['exp','iat','role','user_id']); });",
+                  "pm.collectionVariables.set('org_a_token', j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login wrong password -> 401 generic",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });",
+                  "pm.test('generic message', function () { pm.expect(pm.response.json().error.message).to.eql('Email or password is incorrect.'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"wrong-password-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login unknown email -> 401 same generic message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });",
+                  "pm.test('generic message', function () { pm.expect(pm.response.json().error.message).to.eql('Email or password is incorrect.'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nobody-{{run_id}}@example.test\",\n  \"password\": \"wrong-password-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login missing password -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_a_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force on Organizer B: failure 1 -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"wrong-password-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force on Organizer B: failure 2 -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"wrong-password-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force on Organizer B: failure 3 -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"wrong-password-3\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force on Organizer B: failure 4 -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"wrong-password-4\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force on Organizer B: failure 5 -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"wrong-password-5\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Brute force: 6th attempt (even with the right password) -> 429",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 429', function () { pm.expect([429]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });",
+                  "pm.test('Retry-After header', function () { pm.expect(pm.response.headers.get('Retry-After')).to.be.ok; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Current user and tokens",
+      "item": [
+        {
+          "name": "Me with token -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('no password hash', function () { pm.expect(pm.response.text()).to.not.include('password'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Me without token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Me with tampered role in JWT -> 401",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = pm.collectionVariables.get('org_a_token').split('.');",
+                  "const p = JSON.parse(atob(t[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "p.role = 'staff';",
+                  "const enc = btoa(JSON.stringify(p)).replace(/=+$/,'').replace(/\\+/g,'-').replace(/\\//g,'_');",
+                  "pm.collectionVariables.set('tampered_token', t[0] + '.' + enc + '.' + t[2]);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tampered_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Me with alg=none token -> 401",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const p = JSON.parse(atob(pm.collectionVariables.get('org_a_token').split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "const b = (o) => btoa(JSON.stringify(o)).replace(/=+$/,'').replace(/\\+/g,'-').replace(/\\//g,'_');",
+                  "pm.collectionVariables.set('none_token', b({ alg: 'none', typ: 'JWT' }) + '.' + b(p) + '.x');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{none_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff setup",
+      "item": [
+        {
+          "name": "Staff setup with unknown token -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff setup malformed token -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"short\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create staff staff_a",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('staff_a_email', 'staff_a-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('staff_a_id', j.staff.user_id);",
+                  "pm.test('pending setup', function () { pm.expect(j.staff.status).to.eql('pending_setup'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/staff",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staff staff_a\",\n  \"email\": \"{{staff_a_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_a setup link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('staff_a_setup_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{staff_a_email}}&template=staff_setup",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Staff staff_a sets password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{staff_a_setup_token}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_a login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role staff', function () { pm.expect(j.user.role).to.eql('staff'); });",
+                  "pm.collectionVariables.set('staff_a_token', j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staff_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff setup token reused (single-use) -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{staff_a_setup_token}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff cannot create staff (wrong role) -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/staff",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X\",\n  \"email\": \"x-{{run_id}}@example.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "org_a_email",
+      "value": ""
+    },
+    {
+      "key": "org_a_token",
+      "value": ""
+    },
+    {
+      "key": "org_a_id",
+      "value": ""
+    },
+    {
+      "key": "org_b_email",
+      "value": ""
+    },
+    {
+      "key": "org_b_token",
+      "value": ""
+    },
+    {
+      "key": "org_b_id",
+      "value": ""
+    },
+    {
+      "key": "tampered_token",
+      "value": ""
+    },
+    {
+      "key": "none_token",
+      "value": ""
+    },
+    {
+      "key": "staff_a_email",
+      "value": ""
+    },
+    {
+      "key": "staff_a_id",
+      "value": ""
+    },
+    {
+      "key": "staff_a_setup_token",
+      "value": ""
+    },
+    {
+      "key": "staff_a_token",
+      "value": ""
+    }
+  ]
+}
