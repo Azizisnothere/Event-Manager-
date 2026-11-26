@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:*; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Log in - Event Manager</title>
+  <link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="index.html">Event <span>Manager</span></a></header>
+  <main class="container container-narrow">
+    <form id="login-form" class="card auth-card" novalidate>
+      <h1>Log in</h1>
+      <p class="muted">Organizers and event staff log in here. You are taken to your own pages.</p>
+      <div id="login-error" hidden></div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" maxlength="254" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" maxlength="200" required>
+      </div>
+      <button class="btn btn-block" type="submit">Log in</button>
+      <p class="small muted center">Organizer without an account? <a href="organizer/register.html">Create an organizer account</a></p>
+      <p class="small muted center">Staff: your organizer creates your account and emails you a setup link.</p>
+      <p class="small muted center">Guests: please use the personal link in your invitation email.</p>
+    </form>
+  </main>
+  <script src="shared/config.js"></script>
+  <script src="shared/api.js"></script>
+  <script src="shared/ui.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
