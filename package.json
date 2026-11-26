@@ -1,25 +1,63 @@
 {
   "name": "event-manager",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Event Manager - BUE 26CSCN29H Group 6 (cloud computing security)",
-  "license": "UNLICENSED",
-  "engines": {
-    "node": ">=22"
+  "version": "1.0.0",
+  "description": "Invitation-only guest lists, RSVP and door check-in. BUE 26CSCN29H Cloud Computing and Cloud Security, Group 6.",
+  "main": "dev-server.js",
+  "directories": {
+    "doc": "docs"
   },
   "scripts": {
     "dev": "node --watch dev-server.js",
     "start": "node dev-server.js",
-    "test": "node --test \"tests/**/*.test.js\"",
     "migrate": "node db/migrate.js",
     "migrate:status": "node db/migrate.js --status",
-    "seed": "node db/seed.js"
+    "test": "newman run tests/postman/auth.postman_collection.json -e tests/postman/event-manager.postman_environment.json && newman run tests/postman/events.postman_collection.json -e tests/postman/event-manager.postman_environment.json && newman run tests/postman/rsvp.postman_collection.json -e tests/postman/event-manager.postman_environment.json && newman run tests/postman/checkin.postman_collection.json -e tests/postman/event-manager.postman_environment.json",
+    "deploy": "node infra/deploy.js",
+    "teardown": "node infra/teardown.js",
+    "floci:up": "docker compose -f infra/floci/docker-compose.yml up -d",
+    "floci:down": "docker compose -f infra/floci/docker-compose.yml down",
+    "smoke": "node infra/smoke-test.js",
+    "monitoring": "node infra/monitoring-check.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Azizisnothere/Event-Manager-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Azizisnothere/Event-Manager-/issues"
+  },
+  "homepage": "https://github.com/Azizisnothere/Event-Manager-#readme",
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.0",
-    "express": "^5.1.0",
-    "helmet": "^8.1.0",
-    "pg": "^8.16.0"
+    "@aws-sdk/client-dynamodb": "^3.1175.0",
+    "@aws-sdk/client-s3": "^3.1175.0",
+    "@aws-sdk/client-secrets-manager": "^3.1175.0",
+    "@aws-sdk/client-sns": "^3.1175.0",
+    "@aws-sdk/client-sqs": "^3.1175.0",
+    "@aws-sdk/s3-request-presigner": "^3.1175.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
+    "serverless-http": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-api-gateway": "^3.1175.0",
+    "@aws-sdk/client-cloudwatch": "^3.1177.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.1177.0",
+    "@aws-sdk/client-eventbridge": "^3.1175.0",
+    "@aws-sdk/client-iam": "^3.1175.0",
+    "@aws-sdk/client-lambda": "^3.1175.0",
+    "adm-zip": "^0.5.18",
+    "newman": "^6.2.3"
   }
 }
