@@ -13,13 +13,38 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "migrate": "node db/migrate.js",
     "migrate:status": "node db/migrate.js --status",
-    "seed": "node db/seed.js"
+    "seed": "node db/seed.js",
+    "deploy": "node infra/deploy.js",
+    "teardown": "node infra/teardown.js",
+    "floci:up": "docker compose -f infra/floci/docker-compose.yml up -d",
+    "floci:down": "docker compose -f infra/floci/docker-compose.yml down",
+    "smoke": "node infra/smoke-test.js",
+    "monitoring": "node infra/monitoring-check.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.0",
-    "express": "^5.1.0",
-    "helmet": "^8.1.0",
-    "pg": "^8.16.0"
+    "@aws-sdk/client-dynamodb": "^3.1175.0",
+    "@aws-sdk/client-s3": "^3.1175.0",
+    "@aws-sdk/client-secrets-manager": "^3.1175.0",
+    "@aws-sdk/client-sns": "^3.1175.0",
+    "@aws-sdk/client-sqs": "^3.1175.0",
+    "@aws-sdk/s3-request-presigner": "^3.1175.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-api-gateway": "^3.1175.0",
+    "@aws-sdk/client-cloudwatch": "^3.1177.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.1177.0",
+    "@aws-sdk/client-eventbridge": "^3.1175.0",
+    "@aws-sdk/client-iam": "^3.1175.0",
+    "@aws-sdk/client-lambda": "^3.1175.0",
+    "adm-zip": "^0.5.18",
+    "newman": "^6.2.3"
   }
 }

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:*; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>My events - Event Manager</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="dashboard.html">Event <span>Manager</span></a>
+    <div class="topbar-right" id="user-area"></div>
+  </header>
+  <main class="container">
+    <div class="row row-between">
+      <h1>My events</h1>
+      <div class="row">
+        <label class="sr-label" for="status-filter">
+          <select id="status-filter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="rsvp_closed">RSVP closed</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <a class="btn" href="event-form.html">New event</a>
+      </div>
+    </div>
+    <div id="dashboard-error" hidden></div>
+    <div id="events" class="grid" aria-live="polite"></div>
+    <div id="events-pager"></div>
+  </main>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
