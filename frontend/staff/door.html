@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:*; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Door check-in - Event Manager</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" id="home-link" href="events.html">Event <span>Manager</span></a>
+    <div class="topbar-right" id="user-area"></div>
+  </header>
+  <main class="container">
+    <div class="row row-between">
+      <div>
+        <h1 id="event-title">Door check-in</h1>
+        <p class="small muted" id="window-info"></p>
+      </div>
+    </div>
+    <div id="door-error" hidden></div>
+    <section id="live" class="grid-stats" aria-live="polite"></section>
+    <div id="result" aria-live="assertive"></div>
+
+    <div class="grid">
+      <form id="code-form" class="card" novalidate>
+        <h2>Check in by code</h2>
+        <div class="field">
+          <label for="code">6-character code</label>
+          <input id="code" class="door-input" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="7" required>
+        </div>
+        <div class="field">
+          <label for="code-people">People arrived <span class="muted">(leave empty for the whole party)</span></label>
+          <input id="code-people" name="people" type="number" min="1" max="4" step="1">
+        </div>
+        <button class="btn btn-block btn-large" type="submit">Check in</button>
+      </form>
+
+      <form id="search-form" class="card" novalidate>
+        <h2>Find by name</h2>
+        <div class="field">
+          <label for="search">Guest name</label>
+          <input id="search" name="search" type="search" maxlength="100" autocomplete="off">
+        </div>
+        <button class="btn btn-ghost btn-block" type="submit">Search</button>
+        <div id="search-results"></div>
+      </form>
+    </div>
+
+    <h2>Your recent check-ins</h2>
+    <p class="small muted">You can undo your own check-ins for 15 minutes.</p>
+    <div id="recent"></div>
+  </main>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="js/door.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:*; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>My events - Staff - Event Manager</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="events.html">Event <span>Manager</span></a>
+    <div class="topbar-right" id="user-area"></div>
+  </header>
+  <main class="container">
+    <h1>Events assigned to you</h1>
+    <div id="events-error" hidden></div>
+    <div id="events" class="grid"></div>
+  </main>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="js/events.js"></script>
+</body>
+</html>

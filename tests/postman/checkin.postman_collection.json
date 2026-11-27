@@ -1,0 +1,2136 @@
+{
+  "info": {
+    "name": "Event Manager - Check-in & Attendance",
+    "description": "Check-in service: assigned-staff and owner checks, check-in window, duplicates (409), people arrived, undo rules (own / 15 min / until completed), live counts, final report after completion. The run waits about 70 seconds for the test event to start.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup (event starts in about 70 seconds)",
+      "item": [
+        {
+          "name": "Register Organizer A",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_a_email', 'org_a-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_a_token', j.token);",
+                  "pm.collectionVariables.set('org_a_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer A\",\n  \"email\": \"{{org_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register Organizer B",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('org_b_email', 'org_b-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role is always organizer', function () { pm.expect(j.user.role).to.eql('organizer'); });",
+                  "pm.test('password_hash never returned', function () { pm.expect(JSON.stringify(j)).to.not.include('password_hash'); });",
+                  "pm.collectionVariables.set('org_b_token', j.token);",
+                  "pm.collectionVariables.set('org_b_id', j.user.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organizer B\",\n  \"email\": \"{{org_b_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create staff staff_a",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('staff_a_email', 'staff_a-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('staff_a_id', j.staff.user_id);",
+                  "pm.test('pending setup', function () { pm.expect(j.staff.status).to.eql('pending_setup'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/staff",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staff staff_a\",\n  \"email\": \"{{staff_a_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_a setup link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('staff_a_setup_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{staff_a_email}}&template=staff_setup",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Staff staff_a sets password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{staff_a_setup_token}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_a login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role staff', function () { pm.expect(j.user.role).to.eql('staff'); });",
+                  "pm.collectionVariables.set('staff_a_token', j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staff_a_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create staff staff_b",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('staff_b_email', 'staff_b-' + run + '@example.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('staff_b_id', j.staff.user_id);",
+                  "pm.test('pending setup', function () { pm.expect(j.staff.status).to.eql('pending_setup'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/staff",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staff staff_b\",\n  \"email\": \"{{staff_b_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_b setup link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('staff_b_setup_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{staff_b_email}}&template=staff_setup",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Staff staff_b sets password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/staff-setup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{staff_b_setup_token}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff staff_b login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('role staff', function () { pm.expect(j.user.role).to.eql('staff'); });",
+                  "pm.collectionVariables.set('staff_b_token', j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staff_b_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create event starting soon -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('start_time', new Date(Date.now() + 70 * 1000).toISOString());",
+                  "pm.collectionVariables.set('end_time', new Date(Date.now() + 7200 * 1000).toISOString());",
+                  "pm.collectionVariables.set('rsvp_deadline', new Date(Date.now() + 60 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('event_id', pm.response.json().event.event_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Door test\",\n  \"venue_address\": \"The British University in Egypt, El Sherouk City, Cairo\",\n  \"start_time\": \"{{start_time}}\",\n  \"end_time\": \"{{end_time}}\",\n  \"rsvp_deadline\": \"{{rsvp_deadline}}\",\n  \"capacity\": 10,\n  \"invite_limit\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add guests -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const run = pm.collectionVariables.get('run_id') || (Date.now().toString(36) + Math.floor(Math.random() * 1e4));",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "['1','2','3'].forEach(function (g) { pm.collectionVariables.set('guest_' + g + '_email', 'door-' + g + '-' + run + '@example.test'); });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/invitations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"guests\": [\n    { \"guest_name\": \"Door Guest One\", \"guest_email\": \"{{guest_1_email}}\", \"plus_one_allowance\": 1 },\n    { \"guest_name\": \"Door Guest Two\", \"guest_email\": \"{{guest_2_email}}\", \"plus_one_allowance\": 0 },\n    { \"guest_name\": \"Door Guest Three\", \"guest_email\": \"{{guest_3_email}}\", \"plus_one_allowance\": 0 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Publish -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest 1 link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_1_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_1_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest 2 link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_2_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_2_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest 3 link (dev outbox)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 400);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('link found in dev outbox', function () { const j = pm.response.json(); pm.expect(j.items.length).to.be.above(0); pm.expect(j.items[0].token).to.be.a('string'); pm.collectionVariables.set('guest_3_token', j.items[0].token); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/__dev/outbox?email={{guest_3_email}}&template=invitation",
+            "description": "Dev server only: reads the link from the local email outbox. Against a deployed API, set the variable manually from the received email."
+          }
+        },
+        {
+          "name": "Guest 1 accepts for 2 -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('code_1', pm.response.json().rsvp.check_in_code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_1_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 2,\n  \"dietary_notes\": \"Halal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest 2 accepts for 1 -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('code_2', pm.response.json().rsvp.check_in_code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_2_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accept\",\n  \"party_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Guest 3 declines -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Turnstile-Token",
+                "value": "{{turnstile_token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/invitations/{{guest_3_token}}/rsvp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"decline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Assign staff A -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/staff",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{staff_a_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Find declined RSVP id (organizer) -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('rsvp_3_id', pm.response.json().rsvps[0].rsvp_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps?status=declined"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Door list",
+      "item": [
+        {
+          "name": "Door list (assigned staff) -> 200, no emails or notes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const j = pm.response.json();",
+                  "pm.test('two confirmed guests', function () { pm.expect(j.total).to.eql(2); });",
+                  "pm.test('check-in window open', function () { pm.expect(j.checkin_window.open).to.eql(true); });",
+                  "pm.test('least privilege', function () { const s = JSON.stringify(j.guests); pm.expect(s).to.not.include('@'); pm.expect(s).to.not.include('Halal'); pm.expect(s).to.not.include('check_in_code'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/door-list?search=door"
+          }
+        },
+        {
+          "name": "Door list unassigned staff -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/door-list"
+          }
+        },
+        {
+          "name": "Door list other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/door-list"
+          }
+        },
+        {
+          "name": "Door list without token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/events/{{event_id}}/door-list"
+          }
+        },
+        {
+          "name": "Door list bad filter -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/door-list?checked_in=maybe"
+          }
+        },
+        {
+          "name": "Staff RSVP list has reduced fields -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('no email or dietary notes', function () { pm.response.json().rsvps.forEach(function (r) { pm.expect(r).to.not.have.property('guest_email'); pm.expect(r).to.not.have.property('dietary_notes'); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/rsvps"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Check-in",
+      "item": [
+        {
+          "name": "People arrived above party size -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\",\n  \"people_arrived\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Both rsvp_id and code -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\",\n  \"rsvp_id\": \"{{rsvp_3_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unassigned staff checks in -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_b_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Other organizer checks in -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Check in Guest 1 by code (lowercase ok) -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('code_1_lower', pm.collectionVariables.get('code_1').toLowerCase());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const c = pm.response.json().check_in;",
+                  "pm.test('whole party by default', function () { pm.expect(c.people_arrived).to.eql(2); });",
+                  "pm.collectionVariables.set('checkin_1_id', c.checkin_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1_lower}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Duplicate check-in -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });",
+                  "pm.test('code ALREADY_CHECKED_IN', function () { pm.expect(pm.response.json().error.code).to.eql('ALREADY_CHECKED_IN'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unknown code -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"ZZZZZZ\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Declined guest -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rsvp_id\": \"{{rsvp_3_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Organizer checks in Guest 2 -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('checkin_2_id', pm.response.json().check_in.checkin_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_2}}\",\n  \"people_arrived\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Check-in history -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('two check-ins', function () { pm.expect(pm.response.json().total).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Undo (void)",
+      "item": [
+        {
+          "name": "Void without reason -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/{{checkin_1_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff voids organizer check-in (not own) -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/{{checkin_2_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\",\n  \"void_reason\": \"Not mine\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Staff voids own check-in within 15 min -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('voided with reason kept', function () { const c = pm.response.json().check_in; pm.expect(c.status).to.eql('voided'); pm.expect(c.void_reason).to.eql('Wrong guest admitted'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/{{checkin_1_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\",\n  \"void_reason\": \"Wrong guest admitted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Void again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/{{checkin_1_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\",\n  \"void_reason\": \"Again\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Void unknown check-in -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\",\n  \"void_reason\": \"Unknown\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Live attendance",
+      "item": [
+        {
+          "name": "Live (staff, counts only) -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const l = pm.response.json().live;",
+                  "pm.test('1 arrived of 3 expected', function () { pm.expect(l.arrived).to.eql(1); pm.expect(l.expected).to.eql(3); });",
+                  "pm.test('no names for staff', function () { pm.expect(l).to.not.have.property('recent_arrivals'); });",
+                  "pm.test('warning flag present', function () { pm.expect(l.warning).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/live"
+          }
+        },
+        {
+          "name": "Live (organizer, with recent arrivals) -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('recent arrivals', function () { pm.expect(pm.response.json().live.recent_arrivals).to.be.an('array'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/live"
+          }
+        },
+        {
+          "name": "Live other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/live"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Report",
+      "item": [
+        {
+          "name": "Report before completion -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report"
+          }
+        },
+        {
+          "name": "Download before completion -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report/download"
+          }
+        },
+        {
+          "name": "Report as staff (wrong role) -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report"
+          }
+        },
+        {
+          "name": "Close RSVPs -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"rsvp_closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Complete before start -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Wait until the event has started",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const start = new Date(pm.collectionVariables.get('start_time')).getTime();",
+                  "const wait = Math.max(0, start - Date.now() + 2000);",
+                  "console.log('waiting ' + wait + ' ms for the event to start');",
+                  "setTimeout(function () {}, wait);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/health"
+          }
+        },
+        {
+          "name": "Complete event -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Report -> 200 with correct numbers",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const r = pm.response.json().report;",
+                  "pm.test('invited 3, confirmed 2, attended 1, no-shows 1', function () { pm.expect(r.invited).to.eql(3); pm.expect(r.confirmed).to.eql(2); pm.expect(r.attended).to.eql(1); pm.expect(r.no_shows).to.eql(1); });",
+                  "pm.test('attendance rate 0.5', function () { pm.expect(r.attendance_rate).to.eql(0.5); });",
+                  "pm.test('no-show list has Guest 1', function () { pm.expect(pm.response.json().no_shows[0].guest_name).to.eql('Door Guest One'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report"
+          }
+        },
+        {
+          "name": "Report other organizer -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', function () { pm.expect([403]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_b_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report"
+          }
+        },
+        {
+          "name": "Download link -> 200 (503 when no bucket locally)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 or 503', function () { pm.expect([200,503]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { pm.test('5-minute link', function () { pm.expect(pm.response.json().download.expires_in).to.eql(300); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/attendance/report/download"
+          }
+        },
+        {
+          "name": "Undo after completion -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins/{{checkin_2_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"voided\",\n  \"void_reason\": \"Too late\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Check-in after completion -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error body has code and message', function () { const j = pm.response.json(); pm.expect(j.error).to.be.an('object'); pm.expect(j.error.code).to.be.a('string'); pm.expect(j.error.message).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org_a_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/check-ins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"check_in_code\": \"{{code_1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "org_a_email",
+      "value": ""
+    },
+    {
+      "key": "org_a_token",
+      "value": ""
+    },
+    {
+      "key": "org_a_id",
+      "value": ""
+    },
+    {
+      "key": "org_b_email",
+      "value": ""
+    },
+    {
+      "key": "org_b_token",
+      "value": ""
+    },
+    {
+      "key": "org_b_id",
+      "value": ""
+    },
+    {
+      "key": "staff_a_email",
+      "value": ""
+    },
+    {
+      "key": "staff_a_id",
+      "value": ""
+    },
+    {
+      "key": "staff_a_setup_token",
+      "value": ""
+    },
+    {
+      "key": "staff_a_token",
+      "value": ""
+    },
+    {
+      "key": "staff_b_email",
+      "value": ""
+    },
+    {
+      "key": "staff_b_id",
+      "value": ""
+    },
+    {
+      "key": "staff_b_setup_token",
+      "value": ""
+    },
+    {
+      "key": "staff_b_token",
+      "value": ""
+    },
+    {
+      "key": "start_time",
+      "value": ""
+    },
+    {
+      "key": "end_time",
+      "value": ""
+    },
+    {
+      "key": "rsvp_deadline",
+      "value": ""
+    },
+    {
+      "key": "event_id",
+      "value": ""
+    },
+    {
+      "key": "guest_1_email",
+      "value": ""
+    },
+    {
+      "key": "guest_2_email",
+      "value": ""
+    },
+    {
+      "key": "guest_3_email",
+      "value": ""
+    },
+    {
+      "key": "guest_1_token",
+      "value": ""
+    },
+    {
+      "key": "guest_2_token",
+      "value": ""
+    },
+    {
+      "key": "guest_3_token",
+      "value": ""
+    },
+    {
+      "key": "code_1",
+      "value": ""
+    },
+    {
+      "key": "code_1_lower",
+      "value": ""
+    },
+    {
+      "key": "code_2",
+      "value": ""
+    },
+    {
+      "key": "rsvp_3_id",
+      "value": ""
+    },
+    {
+      "key": "checkin_1_id",
+      "value": ""
+    },
+    {
+      "key": "checkin_2_id",
+      "value": ""
+    }
+  ]
+}
