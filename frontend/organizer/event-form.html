@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:*; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Event - Event Manager</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="dashboard.html">Event <span>Manager</span></a>
+    <div class="topbar-right" id="user-area"></div>
+  </header>
+  <main class="container container-narrow">
+    <p><a id="back-link" href="dashboard.html">&larr; Back</a></p>
+    <form id="event-form" class="card" novalidate>
+      <h1 id="form-title">New event</h1>
+      <div id="form-error" hidden></div>
+      <div id="form-warning" class="alert alert-warn" hidden></div>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" name="title" type="text" maxlength="120" required>
+      </div>
+      <div class="field">
+        <label for="description">Description <span class="muted">(optional)</span></label>
+        <textarea id="description" name="description" maxlength="2000"></textarea>
+      </div>
+      <div class="field">
+        <label for="venue_address">Venue address</label>
+        <input id="venue_address" name="venue_address" type="text" maxlength="300" required>
+        <div id="venue-status" class="field-hint">The address is checked with the geocoding service when you save.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="start_time">Starts</label>
+          <input id="start_time" name="start_time" type="datetime-local" required>
+        </div>
+        <div class="field">
+          <label for="end_time">Ends</label>
+          <input id="end_time" name="end_time" type="datetime-local" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="rsvp_deadline">RSVP deadline</label>
+        <input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" required>
+        <div class="field-hint">Guests can reply and change their reply until this time. It must be on or before the start.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="capacity">Capacity (seats)</label>
+          <input id="capacity" name="capacity" type="number" min="1" max="100000" step="1" required>
+        </div>
+        <div class="field">
+          <label for="invite_limit">Invite limit (people)</label>
+          <input id="invite_limit" name="invite_limit" type="number" min="1" max="100000" step="1" required>
+          <div class="field-hint">Maximum total invited headcount, guests plus allowed companions.</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" type="submit" id="save-button">Save event</button>
+        <a class="btn btn-ghost" id="cancel-link" href="dashboard.html">Cancel</a>
+      </div>
+    </form>
+  </main>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/api.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/event-form.js"></script>
+</body>
+</html>
