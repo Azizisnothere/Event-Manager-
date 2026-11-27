@@ -24,4 +24,4 @@ npm-debug.log*
 Thumbs.db
 .vscode/*
 !.vscode/settings.json
-.idea/
+.idea/infra/.run/
