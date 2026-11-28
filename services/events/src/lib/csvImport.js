@@ -1,12 +1,4 @@
 'use strict';
-/**
- * CSV guest-list import, shared by both ways a list can arrive (Section 5.3, owner: Osama):
- *   - uploaded to S3 with a 5-minute presigned URL, then lambdas/importProcessor.js runs this;
- *   - pasted into POST /api/events/:eventId/invitations/bulk (64 KB body), run in the request.
- * Every row is validated with the same rules as manual entry, duplicates are skipped, the invite
- * limit is enforced row by row, and rows_added / rows_skipped / row errors are stored in
- * guest_list_imports. Threat 5: CSV content only reaches the database through parameterized queries.
- */
 const { db, csv, validation, emailQueue, constants, logger } = require('../../../../shared');
 const { csvGuestSchema } = require('../validators');
 const { GUEST_LIST_OPEN_STATUSES } = require('./statusMachine');
@@ -24,7 +16,6 @@ async function markFailed(importId, reason) {
   log.warn('import_failed', { import_id: importId, reason });
 }
 
-/** Turns parsed CSV rows into validated guests and row errors. */
 function validateRows(rows) {
   if (!rows.length) return { fatal: 'The file is empty.' };
   const header = rows[0].cells.map((h) => h.trim().toLowerCase());
@@ -58,10 +49,6 @@ function validateRows(rows) {
   return { guests, rowErrors };
 }
 
-/**
- * Imports CSV text into an import that is already in status 'processing'.
- * @returns {Promise<'processed'|'failed'>}
- */
 async function importCsvText(importId, eventId, text) {
   let parsed;
   try {
@@ -79,7 +66,6 @@ async function importCsvText(importId, eventId, text) {
   }
 
   const outcome = await db.withTransaction(async (client) => {
-    // Row lock on the event: the invite-limit check cannot race with another insert.
     const { rows: evRows } = await client.query(
       `SELECT event_id, organizer_id, title, venue_address, start_time, end_time, rsvp_deadline, invite_limit, status
          FROM events WHERE event_id = $1 FOR UPDATE`,
@@ -115,7 +101,7 @@ async function importCsvText(importId, eventId, text) {
   if (outcome.failed) return 'failed';
   if (outcome.emailJobs.length) {
     try {
-      await emailQueue.enqueueEmails(outcome.emailJobs); // after COMMIT
+      await emailQueue.enqueueEmails(outcome.emailJobs);
     } catch (err) {
       log.error('import_invitation_emails_not_queued', { import_id: importId, error: err });
     }

@@ -1,4 +1,3 @@
-/* Companion requests tab: approve or deny extra companions (invite limit checked by the server). */
 (function () {
   'use strict';
   var EM = window.EM;

@@ -1,9 +1,3 @@
-/*
- * Guest pages: the personal invitation token comes from the URL fragment (#t=...), which is
- * never sent to the web server or in Referer headers (A36). It is moved to sessionStorage and
- * removed from the address bar so it does not linger in screenshots or shared screens.
- * Guests never use ids: every API call uses the token (Threat 2).
- */
 (function () {
   'use strict';
   var EM = window.EM;
@@ -47,7 +41,6 @@
     container.appendChild(el('div', { class: 'card' }, el('h1', { text: 'Invitation not available' }), el('p', { class: 'alert alert-error', text: text })));
   }
 
-  /** Event header used by every guest page. */
   function eventHeader(data) {
     var ev = data.event;
     return el(
@@ -74,10 +67,6 @@
       }));
   }
 
-  /**
-   * Renders the Turnstile widget (explicit mode) and returns { getToken, reset }.
-   * The server verifies the token before doing anything else (Threat 6).
-   */
   function mountTurnstile(container) {
     var state = { token: null, widgetId: null };
     var box = el('div', { class: 'turnstile-box' });

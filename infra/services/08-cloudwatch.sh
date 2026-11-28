@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Service 8: Amazon CloudWatch - logs, security metrics and alarms  (Adham, report section 11)
-#   Log groups   /aws/lambda/<function>, kept 14 days (no personal data kept longer than needed)
-#   Metric filters count the audit lines shared/audit.js writes, e.g.
-#                {"msg":"security","event":"login_failed",...}  ->  metric FailedLogins
-#   Alarms       5+ failed logins in 5 min (password guessing, Threat 1)
-#                10+ access-denied in 5 min (probing other users' records, Threat 3)
-#                -> notify the SNS topic em-security-alerts
-# Run: bash infra/services/08-cloudwatch.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 mkdir -p infra/.run
@@ -20,7 +12,6 @@ for f in auth events rsvp checkin import scheduler notifier rsvp-consumer report
 done
 
 step "Security metric filters ($NS)"
-# metric  audit-event  functions-that-write-it
 while read -r METRIC EVENT FNS; do
   for f in $FNS; do
     cat > infra/.run/filter.json <<JSON

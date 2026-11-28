@@ -1,11 +1,4 @@
 'use strict';
-/**
- * Event endpoints (Section 5.1, owner: Osama):
- *   POST  /api/events            create a draft event (venue geocoded)          201 | 400, 401, 403, 422
- *   GET   /api/events            own events (organizer) / assigned (staff)      200 | 401
- *   GET   /api/events/:eventId   event details                                  200 | 401, 403, 404
- *   PATCH /api/events/:eventId   edit details or capacity                       200 | 400, 401, 403, 404, 409, 422
- */
 const express = require('express');
 const {
   db,
@@ -22,7 +15,6 @@ const { publishCapacityChanged, publishEventUpdated } = require('../lib/domainEv
 
 const NOTIFY_FIELDS = ['title', 'description', 'venue_address', 'start_time', 'end_time', 'rsvp_deadline'];
 
-/** Geocodes and converts the result into column values + warnings (A6). */
 async function resolveVenue(address) {
   const geo = await geocodeAddress(address);
   if (geo.status === 'not_found') {
@@ -54,13 +46,10 @@ function sameInstant(a, b) {
 function eventRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // POST /api/events
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/events',
     authenticate(),
-    requireRole('organizer'), // Section 6.1: only organizers create events
+    requireRole('organizer'),
     validateRequest(schemas.createEvent),
     async (req, res) => {
       const b = req.valid.body;
@@ -72,7 +61,7 @@ function eventRoutes() {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')
          RETURNING ${eventAccess.EVENT_COLUMNS.join(', ')}`,
         [
-          req.user.user_id, // organizer_id always comes from the verified JWT, never the body (Threat 3)
+          req.user.user_id,
           b.title,
           b.description === undefined ? null : b.description,
           b.venue_address,
@@ -90,9 +79,6 @@ function eventRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events',
     authenticate(),
@@ -101,7 +87,6 @@ function eventRoutes() {
     async (req, res) => {
       const { status, limit, offset } = req.valid.query;
       if (req.user.role === 'organizer') {
-        // Threat 3: ownership in WHERE.
         const { rows } = await db.query(
           `SELECT ${eventAccess.EVENT_SELECT},
                   COALESCE(inv.invited_count, 0)::int       AS invited_count,
@@ -137,7 +122,6 @@ function eventRoutes() {
           offset,
         });
       }
-      // Staff: only events they are assigned to (Threat 4), reduced fields (no invite limit).
       const { rows } = await db.query(
         `SELECT e.event_id, e.title, e.venue_address, e.venue_lat, e.venue_lng, e.start_time, e.end_time,
                 e.status, e.capacity, es.assigned_at, count(*) OVER ()::int AS total
@@ -168,14 +152,11 @@ function eventRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId',
     authenticate(),
     requireRole('organizer', 'staff'),
-    authorizeEvent({ allowStaff: true }), // Threat 3 / 4: owner or assigned staff
+    authorizeEvent({ allowStaff: true }),
     validateRequest(schemas.eventParams),
     async (req, res) => {
       const ev = req.event;
@@ -190,9 +171,6 @@ function eventRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // PATCH /api/events/:eventId
-  // ---------------------------------------------------------------------------
   router.patch(
     '/api/events/:eventId',
     authenticate(),
@@ -203,7 +181,6 @@ function eventRoutes() {
       const patch = req.valid.body;
       const before = req.event;
 
-      // Geocode outside the transaction (network call) when the address changes or is still unverified.
       let venue = null;
       const addressChanged = patch.venue_address !== undefined && patch.venue_address !== before.venue_address;
       if (patch.venue_address !== undefined && (addressChanged || !before.venue_verified)) {
@@ -211,7 +188,6 @@ function eventRoutes() {
       }
 
       const result = await db.withTransaction(async (client) => {
-        // Re-read and lock with ownership in WHERE (Threat 3).
         const ev = await eventAccess.findOwnedEvent(client, before.event_id, req.user.user_id, { forUpdate: true });
         if (!EDITABLE_STATUSES.includes(ev.status)) {
           throw errors.conflict(`A ${ev.status} event cannot be edited.`, 'EVENT_NOT_EDITABLE');
@@ -238,7 +214,6 @@ function eventRoutes() {
           requireFutureDeadline: deadlineChanged && ev.status !== 'rsvp_closed',
         });
 
-        // Capacity can never go below the confirmed headcount (409).
         if (next.capacity !== ev.capacity) {
           const { rows } = await client.query(
             `SELECT COALESCE(sum(party_size), 0)::int AS confirmed
@@ -252,7 +227,6 @@ function eventRoutes() {
             });
           }
         }
-        // The invite limit cannot drop below the headcount already invited (A7).
         if (next.invite_limit !== ev.invite_limit) {
           const invited = await invitedHeadcount(client, ev.event_id);
           if (next.invite_limit < invited) {
@@ -292,7 +266,6 @@ function eventRoutes() {
         return { before: ev, after: rows[0], changed };
       });
 
-      // Messages after COMMIT. Drafts have no guests yet, so nothing to notify.
       if (result.after.status !== 'draft') {
         if (result.after.capacity !== result.before.capacity) {
           await publishCapacityChanged(result.after.event_id, result.before.capacity, result.after.capacity);

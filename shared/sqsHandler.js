@@ -1,16 +1,6 @@
 'use strict';
-/**
- * Wraps a per-record function into an SQS Lambda handler that reports partial
- * batch failures. Only failed records return to the queue (and, after the
- * queue's maxReceiveCount, go to the dead-letter queue).
- * Requires ReportBatchItemFailures on the event source mapping (infra).
- */
 const { logger } = require('./logger');
 
-/**
- * @param {(record: object, context: object) => Promise<any>} processRecord
- * @param {{ name: string }} opts
- */
 function createSqsHandler(processRecord, { name }) {
   const log = logger.child({ consumer: name });
   return async function handler(event, context) {

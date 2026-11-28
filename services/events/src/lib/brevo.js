@@ -1,9 +1,4 @@
 'use strict';
-/**
- * Brevo transactional email client (Section 1.5). Only the notifier Lambda loads the
- * Brevo API key (Section 6.2 "Least privilege", Threat 8). Recipient addresses and the
- * response body are never logged.
- */
 const { secrets, config, logger } = require('../../../../shared');
 
 const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
@@ -14,14 +9,10 @@ class EmailSendError extends Error {
     super(message);
     this.name = 'EmailSendError';
     this.status = status;
-    this.permanent = permanent; // true -> retrying cannot help (e.g. rejected recipient)
+    this.permanent = permanent;
   }
 }
 
-/**
- * @param {{ to: { email: string, name?: string }, subject: string, html: string, text: string }} msg
- * @returns {Promise<{ messageId: string|null }>}
- */
 async function sendEmail({ to, subject, html, text }) {
   if (!config.brevoSenderEmail) {
     throw new EmailSendError('BREVO_SENDER_EMAIL is not configured', { status: 0, permanent: false });
@@ -54,7 +45,6 @@ async function sendEmail({ to, subject, html, text }) {
     }
     return { messageId };
   }
-  // 400 = request rejected (e.g. invalid recipient): permanent. 401/403 = key problem, 429/5xx = transient.
   const permanent = res.status === 400;
   logger.warn('brevo_rejected', { status: res.status, permanent });
   throw new EmailSendError(`Brevo responded ${res.status}`, { status: res.status, permanent });

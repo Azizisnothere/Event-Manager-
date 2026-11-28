@@ -1,15 +1,4 @@
 'use strict';
-/**
- * Guest endpoints (Section 5.1, owner: Abdelaziz). Guests do not log in: the personal
- * invitation token in the path is hashed and looked up (Threat 2).
- *   GET   /api/invitations/:token        own invitation, event and current reply      200 | 404, 429
- *   POST  /api/invitations/:token/rsvp   first reply: accept or decline               201 | 400, 403, 404, 409, 429
- *   PATCH /api/invitations/:token/rsvp   change party size, notes or reply; cancel    200 | 400, 403, 404, 409, 429
- *
- * Chain on every guest route: CORS -> JSON (10 KB) -> per-IP rate limit -> token-hash lookup
- * -> per-token rate limit -> validation -> handler. In POST/PATCH the handler verifies
- * Turnstile (X-Turnstile-Token header) BEFORE any other work (A2); a failure returns 403 and is audited.
- */
 const express = require('express');
 const {
   db,
@@ -28,7 +17,6 @@ const mail = require('../lib/rsvpEmails');
 
 const { RSVP_RATE_LIMIT_PER_IP, RSVP_RATE_LIMIT_PER_TOKEN, AUDIT_EVENT_TYPES, PLUS_ONE_MAX } = constants;
 
-// Threat 6: rate limits per IP and per token on RSVP routes (DynamoDB).
 const guestChain = [
   rateLimit({ name: 'guest-ip', ...RSVP_RATE_LIMIT_PER_IP, key: (req) => emCrypto.hashIp(req.clientIp) }),
   authenticateInvitation(),
@@ -37,10 +25,6 @@ const guestChain = [
 
 const LOCKED_STATUSES = ['cancelled_by_organizer', 'event_cancelled'];
 
-/**
- * Turnstile is verified server-side before any other work; failure -> 403 + audit log.
- * The widget token arrives in the X-Turnstile-Token header (allowed by CORS in shared/appFactory.js).
- */
 async function requireTurnstile(req) {
   const token = req.get('X-Turnstile-Token');
   if (typeof token !== 'string' || token.length < 1 || token.length > 2048) {
@@ -71,9 +55,6 @@ async function lockInvitation(client, invitationId) {
 function guestRsvpRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // GET /api/invitations/:token
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/invitations/:token',
     ...guestChain,
@@ -153,20 +134,16 @@ function guestRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // POST /api/invitations/:token/rsvp  (first reply)
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/invitations/:token/rsvp',
     ...guestChain,
     validateRequest(schemas.postRsvp),
     partySizeWithinAllowance,
     async (req, res) => {
-      await requireTurnstile(req); // before any other work
+      await requireTurnstile(req);
 
       const { response, party_size: partySize, dietary_notes: dietaryNotes } = req.valid.body;
       const outcome = await db.withTransaction(async (client) => {
-        // Section 5.2 step 4: lock the event row, check status and deadline, sum confirmed headcount.
         const ev = await lockEvent(client, req.invitation.event_id);
         if (!ev || ev.status !== 'published' || new Date(ev.rsvp_deadline).getTime() <= Date.now()) {
           throw errors.conflict('Replies are closed for this event.', 'RSVP_CLOSED');
@@ -183,7 +160,7 @@ function guestRsvpRoutes() {
           const confirmed = await confirmedHeadcount(client, ev.event_id);
           if (confirmed + size <= ev.capacity) {
             status = 'confirmed';
-            code = await newCheckInCode(client, ev.event_id); // unique 6-character code
+            code = await newCheckInCode(client, ev.event_id);
           } else {
             status = 'waitlisted';
           }
@@ -205,7 +182,6 @@ function guestRsvpRoutes() {
           }
           throw err;
         }
-        // invitations.status mirrors that a reply exists (status values from the ER diagram).
         await client.query(`UPDATE invitations SET status = 'responded' WHERE invitation_id = $1 AND status = 'sent'`, [
           inv.invitation_id,
         ]);
@@ -222,16 +198,13 @@ function guestRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // PATCH /api/invitations/:token/rsvp  (changes before the deadline; cancel until start)
-  // ---------------------------------------------------------------------------
   router.patch(
     '/api/invitations/:token/rsvp',
     ...guestChain,
     validateRequest(schemas.patchRsvp),
     partySizeWithinAllowance,
     async (req, res) => {
-      await requireTurnstile(req); // before any other work
+      await requireTurnstile(req);
 
       const body = req.valid.body;
       const outcome = await db.withTransaction(async (client) => {
@@ -255,7 +228,6 @@ function guestRsvpRoutes() {
         const active = ['confirmed', 'waitlisted'].includes(r.status);
         const wantsCancel = body.response === 'cancel' || (body.response === 'decline' && active);
 
-        // Changes are allowed before the deadline; after it, only cancelling, until the start (A20).
         if (!beforeDeadline) {
           if (!wantsCancel || body.party_size !== undefined || body.dietary_notes !== undefined) {
             throw errors.conflict('The reply deadline has passed. You can only cancel your attendance.', 'RSVP_DEADLINE_PASSED');
@@ -275,11 +247,10 @@ function guestRsvpRoutes() {
               WHERE rsvp_id = $1`,
             [r.rsvp_id, r.status],
           );
-          freedSeats = r.status === 'confirmed'; // cancelling frees the seat
+          freedSeats = r.status === 'confirmed';
           template = 'cancelled';
           auditCancel = true;
         } else if (body.response === 'decline') {
-          // Already not attending (declined or cancelled_by_guest): record a plain decline.
           await client.query(
             `UPDATE rsvps SET status = 'declined', cancelled_at = NULL, cancelled_from_status = NULL,
                     dietary_notes = COALESCE($2, dietary_notes), responded_at = now()
@@ -288,7 +259,6 @@ function guestRsvpRoutes() {
           );
           template = 'declined';
         } else if (body.response === 'accept' && !active) {
-          // Re-accept after declining or cancelling: capacity is checked again under the lock.
           const size = body.party_size !== undefined ? body.party_size : Math.min(r.party_size, maxSize);
           const confirmed = await confirmedHeadcount(client, ev.event_id);
           const fits = confirmed + size <= ev.capacity;
@@ -304,7 +274,6 @@ function guestRsvpRoutes() {
           );
           template = fits ? 'confirmed' : 'waitlisted';
         } else {
-          // Update an active reply (or notes on a declined one).
           if (body.party_size !== undefined && !active) {
             throw errors.conflict('Accept the invitation before choosing a party size.', 'NOT_ATTENDING');
           }
@@ -313,7 +282,6 @@ function guestRsvpRoutes() {
             throw errors.validationError([{ field: 'party_size', message: `must be between 1 and ${maxSize} for this invitation` }]);
           }
           if (r.status === 'confirmed' && size > r.party_size) {
-            // Increasing party_size re-checks capacity under the same lock.
             const others = await confirmedHeadcount(client, ev.event_id, r.rsvp_id);
             if (others + size > ev.capacity) {
               throw errors.conflict('There are not enough free seats for a larger party.', 'CAPACITY_EXCEEDED', {
@@ -340,8 +308,6 @@ function guestRsvpRoutes() {
           });
         }
 
-        // Promotion runs in the same transaction whenever seats may have been freed; a shrunk
-        // waitlisted party may now fit too.
         const promoted = freedSeats || r.status === 'waitlisted' || template === 'waitlisted' ? await promoteFromWaitlist(client, ev) : [];
         const { rows: after } = await client.query(`SELECT ${RSVP_COLUMNS} FROM rsvps WHERE rsvp_id = $1`, [r.rsvp_id]);
         const position = await waitlistPosition(client, ev.event_id, after[0]);

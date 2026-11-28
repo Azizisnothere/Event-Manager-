@@ -1,8 +1,4 @@
 'use strict';
-/**
- * Access token issuing (Section 6.2): HS256, 1-hour expiry, payload { user_id, role } only.
- * Verification lives in shared/middleware/authenticate.js (algorithms: ['HS256'] only, Threat 4).
- */
 const jwt = require('jsonwebtoken');
 const { secrets, constants } = require('../../../shared');
 

@@ -1,14 +1,4 @@
 'use strict';
-/**
- * scheduler-fn: EventBridge rule rate(5 minutes).
- *  1. published events whose rsvp_deadline has passed  -> rsvp_closed
- *  2. rsvp_closed events 30 minutes after end_time      -> completed (+ event.completed message)
- *  3. repair: completed events that still have no attendance report after 10 minutes get
- *     event.completed re-published (the report generator is idempotent), so a lost message
- *     never leaves an event without its report.
- * Each UPDATE locks the rows it changes, so it serialises with RSVP transactions that hold
- * SELECT ... FOR UPDATE on the same event.
- */
 const { db, constants, logger } = require('../../../shared');
 const { publishEventCompleted } = require('../src/lib/domainEvents');
 

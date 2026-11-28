@@ -1,14 +1,9 @@
-// shared/errors.js  One error shape everywhere: { "error": { "code", "message" } }  [Lab 3 Part 4]
 class AppError extends Error {
-  // opts: { headers, audited, auditDetail }
-  //   headers     extra response headers (Retry-After on 429)
-  //   audited     true when the route already wrote its own audit_log entry
-  //   auditDetail extra, non-sensitive fields for the audit_log entry of a 401/403
   constructor(status, code, message, details, opts = {}) {
     super(message);
     this.status = status;
     this.code = code;
-    this.details = details; // optional, safe-to-show detail; never secrets
+    this.details = details;
     this.headers = opts.headers;
     this.audited = Boolean(opts.audited);
     this.auditDetail = opts.auditDetail;
@@ -16,7 +11,6 @@ class AppError extends Error {
 }
 
 const badRequest = (message, details) => new AppError(400, 'VALIDATION_ERROR', message, details);
-// details: [{ field, message }] from shared/validation.js
 const validationError = (details) => new AppError(400, 'VALIDATION_ERROR', 'Request validation failed.', details);
 const unauthenticated = (message = 'Authentication required.', opts = {}) =>
   new AppError(401, 'UNAUTHENTICATED', message, undefined, opts);
@@ -40,7 +34,6 @@ function sendError(res, error) {
   return res.status(error.status).json(body);
 }
 
-// The route PATTERN (/api/invitations/:token), never the real URL, so tokens are not logged.
 function routePattern(req) {
   return req.route && req.route.path ? `${req.baseUrl || ''}${req.route.path}` : '(unmatched)';
 }

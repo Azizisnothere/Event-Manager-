@@ -1,18 +1,3 @@
-// infra/deploy.js  Creates (or updates) every AWS resource on Floci and deploys the app.   npm run deploy
-// Run it again after any change: every step is "create if missing, otherwise update".   (design 3.5)
-//
-//   Secrets Manager  em/db-url, em/jwt-secret, em/turnstile-secret, em/brevo-api-key, em/geoapify-api-key
-//   S3               em-frontend (static website), em-guest-imports, em-reports, em-deployments (Lambda code)
-//   DynamoDB         em-request-guard (rate limits + idempotency keys, TTL)
-//   SNS / SQS        em-domain-events -> em-rsvp-events, em-checkin-events (filtered by "type"); em-notifications; DLQs
-//   IAM              one role per function (policies: infra/iam/policies/<function>.json, written by the team)
-//   Lambda           4 API functions + 5 background functions, all from one code zip
-//   API Gateway      REST API "em-api", stage "prod", each path routed to its service (Lambda proxy)
-//   EventBridge      em-scheduler-every-5-min -> em-scheduler-fn
-//   CloudWatch       log groups (14 days), metric filters on security events, 2 alarms -> SNS em-security-alerts
-//
-// Reads the same .env as the PC. Floci: AWS_ENDPOINT_URL=http://localhost:4566 (default).
-// Public HTTPS tunnel (optional): PUBLIC_API_URL and PUBLIC_WEB_URL, see infra/README.md.
 require('dotenv').config({ quiet: true, path: require('path').join(__dirname, '..', '.env') });
 
 const fs = require('fs');
@@ -44,11 +29,10 @@ const { CloudWatchClient, PutMetricAlarmCommand } = require('@aws-sdk/client-clo
 const ROOT = path.join(__dirname, '..');
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const ENDPOINT = process.env.DEPLOY_AWS_ENDPOINT || process.env.AWS_ENDPOINT_URL || 'http://localhost:4566';
-// How Lambda containers reach Floci: by its name on the shared Docker network (infra/floci/docker-compose.yml).
 const LAMBDA_AWS_ENDPOINT = process.env.LAMBDA_AWS_ENDPOINT || 'http://floci:4566';
 const RUNTIME = process.env.LAMBDA_RUNTIME || 'nodejs22.x';
 const STAGE = 'prod';
-const P = 'em'; // name prefix
+const P = 'em';
 
 const clientOpts = {
   region: REGION,
@@ -79,9 +63,6 @@ function required(name) {
   return v;
 }
 
-// ---------------------------------------------------------------------------
-// Database: Neon in the real deployment. A localhost Postgres (Docker) is only for testing the deploy.
-// ---------------------------------------------------------------------------
 function databaseForLambda() {
   const raw = required('DATABASE_URL');
   const url = new URL(raw);
@@ -94,9 +75,6 @@ function databaseForLambda() {
   return { url: raw, local: false };
 }
 
-// ---------------------------------------------------------------------------
-// Secrets Manager: values from .env; the Lambdas only get the secret NAMES.  [Threat 8]
-// ---------------------------------------------------------------------------
 async function putSecret(name, value) {
   try {
     await sm.send(new DescribeSecretCommand({ SecretId: name }));
@@ -119,9 +97,6 @@ async function deploySecrets(db) {
   log(`secrets: ${Object.keys(secrets).join(', ')}`);
 }
 
-// ---------------------------------------------------------------------------
-// S3
-// ---------------------------------------------------------------------------
 async function ensureBucket(Bucket) {
   try {
     await s3.send(new HeadBucketCommand({ Bucket }));
@@ -133,14 +108,12 @@ async function ensureBucket(Bucket) {
 
 async function deployBuckets(origins) {
   for (const b of [`${P}-frontend`, `${P}-guest-imports`, `${P}-reports`, `${P}-deployments`]) await ensureBucket(b);
-  // Data buckets stay private: files are reached only through 5-minute presigned links.  [Threat 7]
   for (const b of [`${P}-guest-imports`, `${P}-reports`, `${P}-deployments`]) {
     await s3.send(new PutPublicAccessBlockCommand({
       Bucket: b,
       PublicAccessBlockConfiguration: { BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true, RestrictPublicBuckets: true }
     }));
   }
-  // The browser uploads the CSV straight to S3 with the presigned PUT, so the imports bucket needs CORS.
   await s3.send(new PutBucketCorsCommand({
     Bucket: `${P}-guest-imports`,
     CORSConfiguration: { CORSRules: [{ AllowedOrigins: origins, AllowedMethods: ['PUT'], AllowedHeaders: ['Content-Type'], MaxAgeSeconds: 600 }] }
@@ -148,9 +121,6 @@ async function deployBuckets(origins) {
   log('buckets: em-frontend, em-guest-imports, em-reports, em-deployments');
 }
 
-// ---------------------------------------------------------------------------
-// DynamoDB
-// ---------------------------------------------------------------------------
 async function deployTable() {
   const TableName = `${P}-request-guard`;
   try {
@@ -170,9 +140,6 @@ async function deployTable() {
   return TableName;
 }
 
-// ---------------------------------------------------------------------------
-// SNS + SQS
-// ---------------------------------------------------------------------------
 async function queue(name, attrs = {}) {
   const { QueueUrl } = await sqs.send(new CreateQueueCommand({ QueueName: name }));
   if (Object.keys(attrs).length) await sqs.send(new SetQueueAttributesCommand({ QueueUrl, Attributes: attrs }));
@@ -196,7 +163,6 @@ async function deployMessaging() {
 
   const { Subscriptions = [] } = await sns.send(new ListSubscriptionsByTopicCommand({ TopicArn }));
   const subscribe = async (q, types) => {
-    // Only SNS from our own topic may write to the queue.
     await sqs.send(new SetQueueAttributesCommand({
       QueueUrl: q.url,
       Attributes: {
@@ -221,11 +187,6 @@ async function deployMessaging() {
   return { TopicArn, rsvpQ, checkinQ, notifyQ };
 }
 
-// ---------------------------------------------------------------------------
-// IAM: one role per function. The policy documents are a security control and are written by the
-// team in infra/iam/policies/<function>.json (see infra/iam/PERMISSIONS.md).
-// Floci does not evaluate IAM policies by default, so a missing file only gives a warning here.
-// ---------------------------------------------------------------------------
 async function ensureRole(fn) {
   const RoleName = `${fn}-role`;
   let arn;
@@ -245,9 +206,6 @@ async function ensureRole(fn) {
   return arn;
 }
 
-// ---------------------------------------------------------------------------
-// Lambda code: ONE zip with shared/, services/ and the production node_modules.
-// ---------------------------------------------------------------------------
 function buildZip() {
   const zip = new AdmZip();
   const addDir = (dir) => {
@@ -260,7 +218,6 @@ function buildZip() {
   addDir('shared');
   addDir('services');
   zip.addFile('package.json', fs.readFileSync(path.join(ROOT, 'package.json')));
-  // Only production dependencies (no newman, no deploy tools).
   const out = execSync('npm ls --omit=dev --all --parseable', { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const dirs = [...new Set(out.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && path.resolve(l) !== path.resolve(ROOT)))];
   for (const d of dirs) addDir(path.relative(ROOT, d));
@@ -319,10 +276,6 @@ async function ensureSqsTrigger(FunctionName, queueArn) {
   }));
 }
 
-// ---------------------------------------------------------------------------
-// API Gateway: the same path -> service mapping that dev-server.js uses (all routers in one app there).
-// More specific paths win over {proxy+}, so e.g. /rsvps goes to rsvp-fn although /{proxy+} goes to events-fn.
-// ---------------------------------------------------------------------------
 const ROUTES = [
   ['/api/health', 'auth'],
   ['/api/auth/{proxy+}', 'auth'],
@@ -366,7 +319,6 @@ async function deployApi(fnArns) {
     const r = await ensurePath(p);
     const fnArn = fnArns[svc];
     if (!(r.resourceMethods && r.resourceMethods.ANY)) {
-      // Authentication happens in the Lambda (JWT / invitation token), not in API Gateway.
       await apigw.send(new PutMethodCommand({ restApiId, resourceId: r.id, httpMethod: 'ANY', authorizationType: 'NONE' }));
     }
     await apigw.send(new PutIntegrationCommand({
@@ -383,15 +335,8 @@ async function deployApi(fnArns) {
   return restApiId;
 }
 
-// ---------------------------------------------------------------------------
-// CloudWatch monitoring (report section 11). shared/audit.js writes one line per security event:
-//   {"level":"warn","msg":"security","event":"login_failed",...}
-// A metric filter counts those lines per event type, and an alarm fires when the count is suspicious.
-// Log lines never contain passwords, tokens or emails (shared/logger.js), so the metric is safe to show.
-// ---------------------------------------------------------------------------
 const NAMESPACE = 'EventManager/Security';
 const SECURITY_METRICS = [
-  // [metric name, audit event type, log groups (functions) that write it]
   ['FailedLogins', 'login_failed', ['auth']],
   ['LockedAccounts', 'login_locked', ['auth']],
   ['AccessDenied', 'access_denied', ['auth', 'events', 'rsvp', 'checkin']],
@@ -400,7 +345,6 @@ const SECURITY_METRICS = [
   ['TurnstileFailed', 'turnstile_failed', ['rsvp']]
 ];
 const ALARMS = [
-  // [alarm name, metric, threshold within 5 minutes, description]
   ['em-repeated-failed-logins', 'FailedLogins', 5, '5 or more failed logins in 5 minutes: possible password guessing (Threat 1)'],
   ['em-repeated-access-denied', 'AccessDenied', 10, '10 or more 403 responses in 5 minutes: someone probing other users\' records (Threat 3)']
 ];
@@ -409,7 +353,6 @@ async function deployMonitoring(functionNames) {
   for (const fn of functionNames) {
     const logGroupName = `/aws/lambda/${fn}`;
     await cwLogs.send(new CreateLogGroupCommand({ logGroupName })).catch((e) => { if (e.name !== 'ResourceAlreadyExistsException') throw e; });
-    // Logs are kept 14 days, then deleted (cost, and no personal data kept longer than needed).
     await cwLogs.send(new PutRetentionPolicyCommand({ logGroupName, retentionInDays: 14 })).catch(() => {});
   }
   for (const [metricName, eventType, fns] of SECURITY_METRICS) {
@@ -417,7 +360,6 @@ async function deployMonitoring(functionNames) {
       await cwLogs.send(new PutMetricFilterCommand({
         logGroupName: `/aws/lambda/${P}-${key}-fn`,
         filterName: `${P}-${eventType}`,
-        // Matches the audit line {"msg":"security","event":"<type>"...}; the quotes make it match whole words.
         filterPattern: `"${eventType}"`,
         metricTransformations: [{ metricName, metricNamespace: NAMESPACE, metricValue: '1', defaultValue: 0 }]
       }));
@@ -441,15 +383,11 @@ async function deployMonitoring(functionNames) {
   log(`monitoring: ${SECURITY_METRICS.length} security metrics in ${NAMESPACE}, alarms ${ALARMS.map((a) => a[0]).join(', ')} -> ${P}-security-alerts`);
 }
 
-// ---------------------------------------------------------------------------
-// Frontend: the static pages + config.js with the API address.
-// ---------------------------------------------------------------------------
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
 async function deployFrontend(apiBaseUrl) {
   const Bucket = `${P}-frontend`;
   const base = path.join(ROOT, 'frontend');
-  // Remove old files first so deleted pages do not stay online.
   const { Contents = [] } = await s3.send(new ListObjectsV2Command({ Bucket }));
   if (Contents.length) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: Contents.map((o) => ({ Key: o.Key })) } }));
   const files = [];
@@ -471,7 +409,6 @@ async function deployFrontend(apiBaseUrl) {
     await s3.send(new PutObjectCommand({ Bucket, Key, Body, ContentType: TYPES[path.extname(Key)] || 'application/octet-stream', CacheControl: 'no-cache' }));
   }
   await s3.send(new PutBucketWebsiteCommand({ Bucket, WebsiteConfiguration: { IndexDocument: { Suffix: 'index.html' }, ErrorDocument: { Key: 'index.html' } } }));
-  // The website is public on purpose (read only); the data buckets are not.
   await s3.send(new DeletePublicAccessBlockCommand({ Bucket })).catch(() => {});
   await s3.send(new PutBucketPolicyCommand({
     Bucket,
@@ -480,7 +417,6 @@ async function deployFrontend(apiBaseUrl) {
   log(`frontend: ${files.length} files -> ${Bucket} (API_BASE_URL ${apiBaseUrl})`);
 }
 
-// ---------------------------------------------------------------------------
 async function main() {
   const started = Date.now();
   log(`target ${ENDPOINT}, region ${REGION}, runtime ${RUNTIME}`);
@@ -498,10 +434,10 @@ async function main() {
   const code = await uploadCode();
 
   const env = {
-    NODE_ENV: db.local ? 'development' : 'production', // production refuses non-TLS databases
+    NODE_ENV: db.local ? 'development' : 'production',
     LOG_LEVEL: process.env.LAMBDA_LOG_LEVEL || 'info',
     AWS_ENDPOINT_URL: LAMBDA_AWS_ENDPOINT,
-    S3_PUBLIC_ENDPOINT: publicApi ? new URL(publicApi).origin : 'http://localhost:4566', // the browser must reach presigned links
+    S3_PUBLIC_ENDPOINT: publicApi ? new URL(publicApi).origin : 'http://localhost:4566',
     DB_URL_SECRET_NAME: `${P}/db-url`,
     JWT_SECRET_NAME: `${P}/jwt-secret`,
     TURNSTILE_SECRET_NAME: `${P}/turnstile-secret`,

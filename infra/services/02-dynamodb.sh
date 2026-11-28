@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Service 2: Amazon DynamoDB - table em-request-guard  (Abdelaziz)
-#   Stores rate-limit counters (too many logins / RSVPs from one person) and
-#   idempotency keys (the same RSVP sent twice is counted once).
-#   Every item has an expires_at time; TTL deletes old items automatically.
-# Run: bash infra/services/02-dynamodb.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 TABLE=$P-request-guard

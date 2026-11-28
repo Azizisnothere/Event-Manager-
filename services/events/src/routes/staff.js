@@ -1,14 +1,4 @@
 'use strict';
-/**
- * Staff accounts and assignments (Section 5.1, owner: Osama):
- *   POST   /api/staff                         create a staff account, email a setup link   201 | 400, 401, 403, 409
- *   GET    /api/staff                         organizer's own staff                        200 | 401, 403
- *   POST   /api/events/:eventId/staff         assign one of the organizer's staff          201 | 400, 401, 403, 404, 409
- *   GET    /api/events/:eventId/staff         staff assigned to the event                  200 | 401, 403, 404
- *   DELETE /api/events/:eventId/staff/:userId remove an assignment                         200 | 401, 403, 404, 409
- * Section 6.1: staff accounts are only created by organizers; an organizer may only assign
- * staff they created (staff.created_by = caller).
- */
 const express = require('express');
 const {
   db,
@@ -28,9 +18,6 @@ const { STAFF_SETUP_TOKEN_TTL_HOURS, EMAIL_TEMPLATES } = constants;
 function staffRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // POST /api/staff
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/staff',
     authenticate(),
@@ -38,7 +25,6 @@ function staffRoutes() {
     validateRequest(schemas.createStaff),
     async (req, res) => {
       const { name, email } = req.valid.body;
-      // Single-use setup token, valid 48 hours, stored only as a SHA-256 hash.
       const rawToken = emCrypto.generateToken();
       const expiresAt = utils.addHours(new Date(), STAFF_SETUP_TOKEN_TTL_HOURS);
       let staff;
@@ -85,9 +71,6 @@ function staffRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/staff
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/staff',
     authenticate(),
@@ -122,21 +105,17 @@ function staffRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // POST /api/events/:eventId/staff
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/events/:eventId/staff',
     authenticate(),
     requireRole('organizer'),
-    authorizeEvent(), // Threat 3: own event
+    authorizeEvent(),
     validateRequest(schemas.assignStaff),
     async (req, res) => {
       const { user_id: staffId } = req.valid.body;
       if (['completed', 'cancelled'].includes(req.event.status)) {
         throw errors.conflict(`Staff cannot be assigned to a ${req.event.status} event.`, 'EVENT_CLOSED');
       }
-      // Ownership check: staff.created_by = caller (Section 6.1).
       const { rows: staffRows } = await db.query(
         `SELECT user_id, name, status FROM users WHERE user_id = $1 AND role = 'staff' AND created_by = $2`,
         [staffId, req.user.user_id],
@@ -166,9 +145,6 @@ function staffRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/staff
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/staff',
     authenticate(),
@@ -196,9 +172,6 @@ function staffRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // DELETE /api/events/:eventId/staff/:userId
-  // ---------------------------------------------------------------------------
   router.delete(
     '/api/events/:eventId/staff/:userId',
     authenticate(),
@@ -207,7 +180,6 @@ function staffRoutes() {
     validateRequest(schemas.unassignStaff),
     async (req, res) => {
       if (['completed', 'cancelled'].includes(req.event.status)) {
-        // Assignments are kept as a record once the event is over (A32).
         throw errors.conflict(`Assignments of a ${req.event.status} event cannot be changed.`, 'EVENT_CLOSED');
       }
       const result = await db.query(`DELETE FROM event_staff WHERE event_id = $1 AND user_id = $2`, [

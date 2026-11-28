@@ -1,15 +1,4 @@
 'use strict';
-/**
- * Guest-list rules shared by manual entry, CSV import, publishing and resending.
- *  - Duplicate emails within an event are skipped and reported; (event_id, lower(email)) is unique.
- *  - plus_one_allowance is 0..3 (validator + DB CHECK).
- *  - Total invited headcount = sum(1 + allowance) over non-revoked invitations <= invite_limit.
- *  - Tokens: 256-bit random, only the SHA-256 hash is stored; the raw token goes only into
- *    the email job (Threat 2). A token is issued when the invitation is emailed, and a resend
- *    issues a new one so the previous link stops working (A9).
- * Callers hold the event row lock (SELECT ... FOR UPDATE) for the whole transaction, so the
- * headcount check cannot race with another insert.
- */
 const { errors, crypto: emCrypto, config, constants, utils } = require('../../../../shared');
 
 const T = constants.EMAIL_TEMPLATES;
@@ -24,20 +13,10 @@ async function invitedHeadcount(client, eventId) {
   return rows[0].headcount;
 }
 
-/**
- * Adds guests to a locked event.
- * @param {import('pg').PoolClient} client transaction client holding the event row lock
- * @param {object} event locked event row
- * @param {Array<{ guest_name: string, guest_email: string, plus_one_allowance: number, category?: string|null, line?: number }>} guests
- * @param {{ mode: 'all_or_nothing'|'partial' }} opts
- *   all_or_nothing (manual entry): exceeding invite_limit rejects the whole request with 409.
- *   partial (CSV import): rows that would exceed the limit are reported as row errors.
- */
 async function addGuests(client, event, guests, { mode }) {
   const skipped = [];
   const rowErrors = [];
 
-  // 1. Duplicates inside the request itself.
   const seen = new Set();
   const unique = [];
   for (const g of guests) {
@@ -50,7 +29,6 @@ async function addGuests(client, event, guests, { mode }) {
     unique.push({ ...g, email_key: key });
   }
 
-  // 2. Duplicates against the existing guest list (including revoked invitations).
   const existing = new Map();
   if (unique.length) {
     const { rows } = await client.query(
@@ -74,7 +52,6 @@ async function addGuests(client, event, guests, { mode }) {
     }
   }
 
-  // 3. Invite limit on total invited headcount.
   const current = await invitedHeadcount(client, event.event_id);
   if (mode === 'all_or_nothing') {
     const requested = candidates.reduce((sum, g) => sum + 1 + g.plus_one_allowance, 0);
@@ -100,7 +77,6 @@ async function addGuests(client, event, guests, { mode }) {
     candidates = fitting;
   }
 
-  // 4. Insert (parameterized arrays; ON CONFLICT covers a concurrent insert of the same email).
   let added = [];
   if (candidates.length) {
     const { rows } = await client.query(
@@ -135,13 +111,9 @@ async function addGuests(client, event, guests, { mode }) {
   };
 }
 
-/**
- * Issues a fresh token for each invitation (publish, add-after-publish, resend).
- * Returns the rows plus raw_token for building the email; the raw token is not stored.
- */
 async function issueTokens(client, invitationIds) {
   if (!invitationIds.length) return [];
-  const tokens = invitationIds.map(() => emCrypto.generateToken()); // 256-bit (Threat 2)
+  const tokens = invitationIds.map(() => emCrypto.generateToken());
   const { rows } = await client.query(
     `UPDATE invitations AS i
         SET token_hash = v.token_hash,
@@ -163,7 +135,6 @@ function frontendBaseUrl() {
   return 'http://localhost:8080';
 }
 
-/** Guest link: the token travels in the URL fragment so it is not sent to S3 logs or in Referer (A36). */
 function invitationUrl(rawToken) {
   return `${frontendBaseUrl()}/guest/invitation.html#t=${rawToken}`;
 }
@@ -177,7 +148,6 @@ async function organizerName(client, organizerId) {
   return rows.length ? rows[0].name : null;
 }
 
-/** Email job inputs for issued invitations (queued after COMMIT). */
 function invitationEmailJobs(event, hostName, issued, { resend = false } = {}) {
   return issued.map((inv) => ({
     template: T.INVITATION,

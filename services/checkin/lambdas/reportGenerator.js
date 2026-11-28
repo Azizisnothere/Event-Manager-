@@ -1,12 +1,4 @@
 'use strict';
-/**
- * report-fn: consumes em-checkin-events (event.completed).
- * Computes invited, confirmed, attended, no_shows, late_cancellations and attendance_rate,
- * saves the CSV (formula-escaped) to the private reports bucket, writes attendance_reports and
- * upserts guest_history per organizer and guest email - all exactly once per event:
- * the report row is inserted with ON CONFLICT DO NOTHING and guest_history is only updated
- * when that insert actually happened (A27).
- */
 const { db, messaging, sqsHandler, s3, config, constants, crypto: emCrypto, logger } = require('../../../shared');
 const { loadReportRows, computeTotals, buildCsv, reportKey } = require('../src/lib/reportBuilder');
 
@@ -26,8 +18,6 @@ async function generateReport(eventId) {
   const { rowCount: exists } = await db.query(`SELECT 1 FROM attendance_reports WHERE event_id = $1`, [eventId]);
   if (exists) return 'exists';
 
-  // Data is frozen once completed (no RSVP changes or check-ins), so computing outside the
-  // insert transaction is consistent; REPEATABLE READ keeps rows and totals in one snapshot.
   return db.withTransaction(
     async (client) => {
       const rows = await loadReportRows(client, eventId);
@@ -62,7 +52,6 @@ async function generateReport(eventId) {
       );
       if (!inserted.length) return 'exists';
 
-      // guest_history: one row per organizer + lower(email), counting confirmed guests only.
       const perGuest = new Map();
       for (const r of rows.filter((x) => x.rsvp_status === 'confirmed')) {
         const email = emCrypto.normalizeEmail(r.guest_email);

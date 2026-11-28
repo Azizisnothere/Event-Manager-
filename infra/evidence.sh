@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Collects the cloud evidence for the report: every command and its real output
-# (like the labs: "copy the command and its output"), one file per service,
-# then zips it as docs/evidence/cloud-evidence.zip.
-# Secret VALUES are never printed (only their names). .env is never included.
-# Run from the project folder in Git Bash:   bash infra/evidence.sh
 cd "$(dirname "$0")/.."
 source infra/services/_lib.sh || exit 1
 OUT=docs/evidence/cloud
@@ -14,7 +9,7 @@ TOPIC=arn:aws:sns:$REGION:$ACCOUNT:$P-domain-events
 
 FILE=""
 section() { FILE="$OUT/$1.txt"; { echo "# $2"; echo "# Event Manager on Floci (account $ACCOUNT, region $REGION), collected $(date -u +%FT%TZ)"; echo; } > "$FILE"; echo "  writing $FILE"; }
-run() { { echo "\$ $*"; eval "$@" 2>&1; echo; } >> "$FILE"; }     # command + its output
+run() { { echo "\$ $*"; eval "$@" 2>&1; echo; } >> "$FILE"; }
 note() { echo "$*" >> "$FILE"; echo >> "$FILE"; }
 
 section 00-check "Automated check of every service (bash infra/check.sh)"
@@ -103,6 +98,5 @@ note "Public website: ${PUBLIC_WEB:-(no tunnel running)}"
 section 13-scripts "The scripts that built everything (one per service, like Lab 8)"
 run ls -1 infra/services infra/run-floci.sh infra/check.sh infra/evidence.sh infra/zip-lambda.js infra/web-proxy.js
 
-cp infra/evidence-README.md "$OUT/README.md" 2>/dev/null
 node -e "const fs=require('fs');const Z=require('adm-zip');const z=new Z();z.addLocalFolder('$OUT','cloud-evidence');if(fs.existsSync('docs/evidence/screenshots'))z.addLocalFolder('docs/evidence/screenshots','cloud-evidence/screenshots');z.writeZip('docs/evidence/cloud-evidence.zip');"
 echo; echo "Done: docs/evidence/cloud-evidence.zip  ($(ls $OUT | wc -l) files)"

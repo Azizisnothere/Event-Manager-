@@ -1,5 +1,3 @@
-// shared/index.js  One import for the services:
-//   const { db, errors, logger, middleware: { authenticate, requireRole } } = require('../../../shared');
 const config = require('./config');
 const constants = require('./constants');
 const { logger } = require('./logger');

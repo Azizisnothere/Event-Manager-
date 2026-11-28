@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Service 1: Amazon S3 - four buckets.
-#   em-frontend       the website (made public when the site is uploaded, step 11)
-#   em-guest-imports  guest-list CSV uploads (Osama)
-#   em-reports        attendance CSV reports (Adham)
-#   em-deployments    Lambda code zips (step 9)
-# Run: bash infra/services/01-s3.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 
@@ -15,8 +9,6 @@ for b in $P-frontend $P-guest-imports $P-reports $P-deployments; do
 done
 
 step "Block public access on the data buckets  [Threat 7]"
-# Guest lists and reports hold names and emails: nobody may read them publicly.
-# Files are reached only through 5-minute presigned links made by the app.
 for b in $P-guest-imports $P-reports $P-deployments; do
   awsl s3api put-public-access-block --bucket "$b" --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
@@ -24,9 +16,6 @@ for b in $P-guest-imports $P-reports $P-deployments; do
 done
 
 step "CORS on em-guest-imports"
-# The browser uploads the CSV straight to S3 (presigned PUT), so S3 must accept
-# PUT from our website only: the Floci website, the public tunnel (PUBLIC_WEB_URL in .env)
-# and localhost:8080 for npm run dev.
 mkdir -p infra/.run
 ORIGINS_JSON="\"$LOCAL_WEB\", \"http://localhost:8080\""
 [ -n "$PUBLIC_WEB" ] && ORIGINS_JSON="$ORIGINS_JSON, \"$PUBLIC_WEB\""

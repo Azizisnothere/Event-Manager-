@@ -1,12 +1,4 @@
 'use strict';
-/**
- * Companion (plus-one) requests (Section 5.1, owner: Osama):
- *   POST  /api/invitations/:token/plus-one-requests            guest asks for an extra companion   201 | 400, 404, 409, 429
- *   GET   /api/events/:eventId/plus-one-requests               organizer lists requests            200 | 401, 403, 404
- *   PATCH /api/events/:eventId/plus-one-requests/:requestId    approve or deny                     200 | 400, 401, 403, 404, 409
- * Approval raises that invitation's allowance by 1 only if both the 0-3 cap and the invite
- * limit allow it; otherwise 409.
- */
 const express = require('express');
 const {
   db,
@@ -27,14 +19,10 @@ const { PLUS_ONE_MAX, RSVP_RATE_LIMIT_PER_IP, RSVP_RATE_LIMIT_PER_TOKEN, EMAIL_T
 function plusOneRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // POST /api/invitations/:token/plus-one-requests  (guest)
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/invitations/:token/plus-one-requests',
-    // Threat 6: rate limits per IP and per token on guest routes (DynamoDB).
     rateLimit({ name: 'guest-ip', ...RSVP_RATE_LIMIT_PER_IP, key: (req) => emCrypto.hashIp(req.clientIp) }),
-    authenticateInvitation(), // Threat 2: SHA-256 token lookup; revoked -> 404
+    authenticateInvitation(),
     rateLimit({ name: 'guest-token', ...RSVP_RATE_LIMIT_PER_TOKEN, key: (req) => req.tokenHash }),
     validateRequest(schemas.plusOneRequest),
     async (req, res) => {
@@ -86,9 +74,6 @@ function plusOneRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/plus-one-requests  (organizer)
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/plus-one-requests',
     authenticate(),
@@ -130,9 +115,6 @@ function plusOneRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // PATCH /api/events/:eventId/plus-one-requests/:requestId  (organizer)
-  // ---------------------------------------------------------------------------
   router.patch(
     '/api/events/:eventId/plus-one-requests/:requestId',
     authenticate(),
@@ -163,7 +145,6 @@ function plusOneRoutes() {
 
         let newAllowance = r.plus_one_allowance;
         if (decision === 'approved') {
-          // Rule: approve only if the 0-3 cap AND the invite limit allow one more person.
           if (r.plus_one_allowance + 1 > PLUS_ONE_MAX) {
             throw errors.conflict(`A guest can bring at most ${PLUS_ONE_MAX} companions.`, 'ALLOWANCE_AT_MAXIMUM');
           }

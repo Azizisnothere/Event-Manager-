@@ -1,12 +1,4 @@
 'use strict';
-/**
- * Live attendance and final report (Section 5.1, owner: Adham):
- *   GET /api/events/:eventId/attendance/live              arrivals vs expected, occupancy   200 | 401, 403, 404   organizer, staff (counts only)
- *   GET /api/events/:eventId/attendance/report            final report                      200 | 401, 403, 404, 409 organizer
- *   GET /api/events/:eventId/attendance/report/download   5-minute CSV download link        200 | 401, 403, 404, 409 organizer
- * Report endpoints return 409 before the event is completed (and while it is being generated).
- * Threat 7: the report file is private and reached only through a 5-minute presigned link.
- */
 const express = require('express');
 const {
   db,
@@ -44,9 +36,6 @@ async function loadReport(event) {
 function attendanceRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/attendance/live
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/attendance/live',
     authenticate(),
@@ -70,19 +59,18 @@ function attendanceRoutes() {
         event_id: ev.event_id,
         status: ev.status,
         capacity: ev.capacity,
-        expected: s.expected, // confirmed headcount
+        expected: s.expected,
         arrived: s.arrived,
         remaining_expected: Math.max(0, s.expected - s.arrived),
         confirmed_parties: s.confirmed_parties,
         checked_in_parties: s.checked_in_parties,
         occupancy_ratio: occupancy,
-        warning: occupancy >= OCCUPANCY_WARNING_RATIO, // warning flag at 90% or more
+        warning: occupancy >= OCCUPANCY_WARNING_RATIO,
         warning_threshold: OCCUPANCY_WARNING_RATIO,
         checkin_window: { opens_at: w.opens_at.toISOString(), closes_at: w.closes_at.toISOString(), open: isCheckinOpen(ev) },
         generated_at: new Date().toISOString(),
       };
       if (req.user.role === 'organizer') {
-        // Staff get counts only.
         const { rows: recent } = await db.query(
           `SELECT c.checkin_id, i.guest_name, c.people_arrived, c.checked_in_at, u.name AS checked_in_by_name
              FROM check_ins c
@@ -106,14 +94,11 @@ function attendanceRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/attendance/report
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/attendance/report',
     authenticate(),
     requireRole('organizer'),
-    authorizeEvent(), // Threat 3: own events only
+    authorizeEvent(),
     validateRequest(schemas.eventParams),
     async (req, res) => {
       const report = await loadReport(req.event);
@@ -145,9 +130,6 @@ function attendanceRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/attendance/report/download
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/attendance/report/download',
     authenticate(),
@@ -162,7 +144,7 @@ function attendanceRoutes() {
         key: report.s3_report_key,
         downloadName: `attendance-${req.event.event_id}.csv`,
       });
-      res.json({ download: link }); // { url, expires_in: 300 }
+      res.json({ download: link });
     },
   );
 

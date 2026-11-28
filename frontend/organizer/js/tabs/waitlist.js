@@ -1,4 +1,3 @@
-/* Waitlist tab: ordered list with positions and manual promotion. */
 (function () {
   'use strict';
   var EM = window.EM;

@@ -1,4 +1,3 @@
-/* Companion request: ask the organizer to allow one more companion (approval is up to the organizer). */
 (function () {
   'use strict';
   var EM = window.EM;

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Service 6: Amazon EventBridge - rule em-scheduler-every-5-min  (Osama)
-#   A timer: every 5 minutes it runs em-scheduler-fn, which closes RSVPs at the
-#   deadline and marks finished events as completed.
-#   The target (the Lambda) is connected in step 10, after the Lambda exists.
-# Run: bash infra/services/06-eventbridge.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 

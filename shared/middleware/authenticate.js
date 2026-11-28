@@ -1,12 +1,4 @@
 'use strict';
-/**
- * Middleware step 3a: JWT authentication for organizers and staff.
- * Threat 4: the signature is verified with HS256 ONLY (algorithms: ['HS256']), so "alg: none"
- * or RS/HS confusion tokens are rejected, and an edited role invalidates the signature.
- * Threat 1: 1-hour expiry is checked by jsonwebtoken.
- * The user row is re-read so disabled accounts and role changes take effect immediately (A30).
- * Missing / invalid credentials -> 401 (audited by the error handler).
- */
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { getSecret } = require('../secrets');
@@ -21,22 +13,15 @@ function bearerToken(req) {
   return m ? m[1] : null;
 }
 
-/**
- * Verifies a JWT and returns { user_id, role } or throws.
- * Exported for the auth service and tests.
- */
 async function verifyAccessToken(token) {
   const secret = await getSecret('jwtSecret');
-  const payload = jwt.verify(token, secret, { algorithms: [JWT_ALGORITHM] }); // HS256 only (Threat 4)
+  const payload = jwt.verify(token, secret, { algorithms: [JWT_ALGORITHM] });
   if (!payload || !isUuid(payload.user_id) || !ROLES.includes(payload.role)) {
     throw new Error('Token payload is invalid');
   }
   return { user_id: payload.user_id, role: payload.role };
 }
 
-/**
- * @param {{ optional?: boolean }} [opts] optional: continue without req.user when no token is sent
- */
 function authenticate(opts = {}) {
   return async (req, res, next) => {
     const token = bearerToken(req);

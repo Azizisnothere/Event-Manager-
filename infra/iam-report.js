@@ -1,10 +1,6 @@
-// infra/iam-report.js  Lists the IAM permissions Floci DENIED in the last N minutes, per Lambda function.
-// Use with IAM enforcement on (em-iam-test.bat / infra/README.md):  node infra/iam-report.js [minutes]
-// Each line = something one of your policies in infra/iam/policies/ does not allow yet.
 const { spawnSync } = require('child_process');
 
 const minutes = Number(process.argv[2]) || 10;
-// Floci may log to stdout or stderr, so read both.
 const run = spawnSync('docker', ['logs', 'floci', '--since', `${minutes}m`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 if (run.error) {
   console.error(`Could not read the Floci log: ${run.error.message}`);
@@ -13,8 +9,6 @@ if (run.error) {
 const text = `${run.stdout || ''}\n${run.stderr || ''}`;
 const lines = text.split(/\r?\n/);
 
-// Floci prints "IAM enforcement DENY: akid=<key> action=<action> resource=<arn>"; the function shows up on the
-// Lambda log line with the same access key's error just after it, so map each key to the nearest function name.
 const denies = [];
 const keyToFn = new Map();
 let lastDenyKeys = [];
@@ -39,7 +33,6 @@ if (!denies.length) {
 const byFn = new Map();
 for (const d of denies) {
   const fn = keyToFn.get(d.key) || '(function not identified)';
-  // Drop the random suffix AWS adds to secret ARNs so repeated denials group together.
   const resource = d.resource.includes(':secret:') ? d.resource.replace(/-[A-Za-z0-9]{6}$/, '*') : d.resource;
   if (!byFn.has(fn)) byFn.set(fn, new Set());
   byFn.get(fn).add(`${d.action}  on  ${resource}`);

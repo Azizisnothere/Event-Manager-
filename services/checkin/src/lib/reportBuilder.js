@@ -1,19 +1,6 @@
 'use strict';
-/**
- * Final attendance report (Section 1.2 definitions, A26):
- *  - invited             invitations not revoked
- *  - confirmed           RSVPs confirmed at completion
- *  - attended            confirmed RSVPs with an active check-in
- *  - no_shows            confirmed at completion with no active check-in
- *  - late_cancellations  guest cancelled a CONFIRMED RSVP after the RSVP deadline (A20)
- *  - waitlist_promoted   RSVPs that were promoted from the waitlist
- *  - attendance_rate     attended / confirmed (0 when nobody confirmed), 4 decimals
- * Counts are of parties (RSVPs); people totals are reported alongside.
- * The CSV escapes formula characters (Threat 5).
- */
 const { csv, utils } = require('../../../../shared');
 
-/** Per-invitation rows (organizer-only data: includes emails). */
 async function loadReportRows(client, eventId) {
   const { rows } = await client.query(
     `SELECT i.invitation_id, i.guest_name, i.guest_email, i.category, i.plus_one_allowance, i.status AS invitation_status,
@@ -56,7 +43,6 @@ function yesNo(v) {
   return v ? 'yes' : 'no';
 }
 
-/** CSV with formula-escaped cells (shared/csv.escapeCsvCell). */
 function buildCsv(event, rows, totals) {
   const lines = [
     ['Event', event.title],

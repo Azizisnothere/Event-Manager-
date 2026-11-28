@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# Service 9: AWS Lambda - 9 functions, all from ONE code zip (like Lab 7 Parts 4-5).
-#   API functions (called by API Gateway, step 11):
-#     em-auth-fn (Abdelaziz)  em-events-fn (Osama)  em-rsvp-fn (Abdelaziz)  em-checkin-fn (Adham)
-#   Background functions (called by S3 / EventBridge / SQS, step 10):
-#     em-import-fn (Osama)  em-scheduler-fn (Osama)  em-notifier-fn (Osama)
-#     em-rsvp-consumer-fn (Abdelaziz)  em-report-fn (Adham)
-#   Each function wears its own IAM role (step 7). Secrets are passed by NAME only (step 5).
-# Needs: steps 1-8, npm install.
-# Run: bash infra/services/09-lambda.sh      (safe to run again: updates code and settings)
 set -e
 source "$(dirname "$0")/_lib.sh"
 mkdir -p infra/.run
 
-# SETTINGS_ONLY=1: keep the code, only update the settings (used by step 13 for a new address).
 if [ "$SETTINGS_ONLY" = 1 ]; then
   step "Code zip"; skip "code unchanged (SETTINGS_ONLY=1)"
 else
@@ -30,7 +20,7 @@ ORIGINS=$LOCAL_WEB${PUBLIC_WEB:+,$PUBLIC_WEB}
 S3_PUBLIC=http://localhost:4566
 [ -n "$PUBLIC_API" ] && S3_PUBLIC=$(echo "$PUBLIC_API" | sed -E 's#^(https?://[^/]+).*#\1#')
 SENDER_EMAIL=$(envval BREVO_SENDER_EMAIL); SENDER_NAME=$(envval BREVO_SENDER_NAME); TZ_NAME=$(envval DISPLAY_TIME_ZONE)
-write_env() {   # $1 = function name
+write_env() {
   cat > infra/.run/env.json <<JSON
 { "Variables": {
   "SERVICE_NAME": "$1",
@@ -60,7 +50,6 @@ JSON
 ok "secrets by NAME only (em/db-url, em/jwt-secret, ...), buckets, table, topic, queue, CORS $ORIGINS"
 
 step "Functions ($RUNTIME, 512 MB)"
-# name  handler  timeout(s)
 while read -r F HANDLER TIMEOUT; do
   FN=$P-$F-fn
   ROLE_ARN=arn:aws:iam::$ACCOUNT:role/$FN-role

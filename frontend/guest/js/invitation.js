@@ -1,4 +1,3 @@
-/* Invitation page: event details, map link, accept or decline, party size within the allowance, dietary notes, Turnstile. */
 (function () {
   'use strict';
   var EM = window.EM;
@@ -61,7 +60,7 @@
         window.location.href = 'result.html';
       } catch (err) {
         EM.showError(errorBox, err);
-        turnstile.reset(); // Turnstile tokens are single-use
+        turnstile.reset();
       } finally {
         ui.setBusy(submit, false);
       }

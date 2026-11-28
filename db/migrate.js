@@ -1,22 +1,5 @@
 #!/usr/bin/env node
 'use strict';
-/**
- * Applies db/migrations/*.sql in filename order, each in its own transaction,
- * and records them in schema_migrations with a SHA-256 checksum so an edited
- * migration is detected instead of silently re-run.
- *
- * Runs with the Neon OWNER connection (MIGRATION_DATABASE_URL), never with the
- * restricted em_app role used by the Lambdas.
- *
- * Usage:
- *   npm run migrate            apply pending migrations   (node db/migrate.js)
- *   npm run migrate:status     list applied / pending migrations
- *
- * Environment:
- *   MIGRATION_DATABASE_URL   owner connection string (required)
- *   EM_APP_DB_PASSWORD       optional; sets the em_app role password after migrating
- *   DB_SSL                   "disable" only for a local, non-Neon Postgres
- */
 require('dotenv').config({ quiet: true, path: require('path').join(__dirname, '..', '.env') });
 
 const fs = require('fs');
@@ -25,16 +8,15 @@ const crypto = require('crypto');
 const { Client } = require('pg');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
-const ADVISORY_LOCK_ID = 610_2026; // any constant; prevents two runners migrating at once
+const ADVISORY_LOCK_ID = 610_2026;
 
 function buildClientConfig(connectionString) {
   const url = new URL(connectionString);
-  // TLS is configured explicitly below; drop libpq-style params pg would otherwise reinterpret.
   for (const p of ['sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'ssl']) url.searchParams.delete(p);
   const disableSsl = process.env.DB_SSL === 'disable';
   return {
     connectionString: url.toString(),
-    ssl: disableSsl ? false : { rejectUnauthorized: true }, // Neon over TLS (sslmode=require)
+    ssl: disableSsl ? false : { rejectUnauthorized: true },
     application_name: 'em-migrate',
   };
 }
@@ -110,7 +92,6 @@ async function run() {
     if (!statusOnly && process.env.EM_APP_DB_PASSWORD) {
       const password = process.env.EM_APP_DB_PASSWORD;
       if (password.length < 16) throw new Error('EM_APP_DB_PASSWORD must be at least 16 characters.');
-      // DDL cannot take bind parameters; escapeLiteral quotes the value safely.
       await client.query(`ALTER ROLE em_app WITH LOGIN PASSWORD ${client.escapeLiteral(password)}`);
       console.log('em_app password updated.');
     }

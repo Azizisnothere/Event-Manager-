@@ -1,14 +1,4 @@
 'use strict';
-/**
- * Organizer moderation and capacity endpoints (Section 5.1, owner: Abdelaziz):
- *   GET   /api/events/:eventId/rsvps                     replies (?search, ?status)   200 | 400, 401, 403, 404   organizer, staff (reduced)
- *   GET   /api/events/:eventId/waitlist                  ordered waitlist             200 | 401, 403, 404        organizer
- *   POST  /api/events/:eventId/rsvps/:rsvpId/promote     manual promotion             200 | 401, 403, 404, 409   organizer
- *   PATCH /api/events/:eventId/rsvps/:rsvpId             cancel a suspicious RSVP     200 | 400, 401, 403, 404, 409 organizer
- *   GET   /api/events/:eventId/capacity                  capacity summary             200 | 401, 403, 404        organizer, staff
- * Threat 3: ownership in the SQL WHERE; Threat 4: staff checked against event_staff.
- * Least privilege: staff never receive emails or dietary notes.
- */
 const express = require('express');
 const {
   db,
@@ -50,7 +40,6 @@ async function capacitySummary(client, event) {
   };
 }
 
-/** Locks the owned event and the RSVP inside a transaction. */
 async function lockOwnedRsvp(client, req, rsvpId) {
   const ev = await eventAccess.findOwnedEvent(client, req.event.event_id, req.user.user_id, { forUpdate: true });
   const { rows } = await client.query(
@@ -68,9 +57,6 @@ async function lockOwnedRsvp(client, req, rsvpId) {
 function organizerRsvpRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/rsvps
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/rsvps',
     authenticate(),
@@ -81,7 +67,6 @@ function organizerRsvpRoutes() {
       const { search, status, limit, offset } = req.valid.query;
       const pattern = search ? `%${utils.escapeLike(search)}%` : null;
       const isStaff = req.user.role === 'staff';
-      // Least privilege: the staff query does not even select email or dietary notes.
       const columns = isStaff
         ? 'r.rsvp_id, i.guest_name, r.party_size, r.status'
         : `r.rsvp_id, r.invitation_id, i.guest_name, i.guest_email, r.status, r.party_size, r.dietary_notes,
@@ -111,9 +96,6 @@ function organizerRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/waitlist
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/waitlist',
     authenticate(),
@@ -145,9 +127,6 @@ function organizerRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // POST /api/events/:eventId/rsvps/:rsvpId/promote
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/events/:eventId/rsvps/:rsvpId/promote',
     authenticate(),
@@ -164,7 +143,6 @@ function organizerRsvpRoutes() {
         if (r.status !== 'waitlisted') throw errors.conflict('Only waitlisted guests can be promoted.', 'NOT_WAITLISTED');
         const promoted = await promoteOne(client, ev, r);
         if (!promoted) throw errors.conflict('There are not enough free seats for this party.', 'NO_SEATS');
-        // Section 6.1: manual promotion is written to the audit log.
         await audit.auditFromRequest(req, AUDIT_EVENT_TYPES.RSVP_PROMOTED, {
           eventId: ev.event_id,
           targetId: r.rsvp_id,
@@ -178,9 +156,6 @@ function organizerRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // PATCH /api/events/:eventId/rsvps/:rsvpId  (organizer cancels a suspicious RSVP)
-  // ---------------------------------------------------------------------------
   router.patch(
     '/api/events/:eventId/rsvps/:rsvpId',
     authenticate(),
@@ -208,14 +183,12 @@ function organizerRsvpRoutes() {
             WHERE rsvp_id = $1`,
           [r.rsvp_id, r.status, reason],
         );
-        // Section 6.1 / 6.2: cancelled RSVPs are written to the audit log (reason kept).
         await audit.auditFromRequest(req, AUDIT_EVENT_TYPES.RSVP_CANCELLED, {
           eventId: ev.event_id,
           targetId: r.rsvp_id,
           detail: { cancelled_by: 'organizer', from_status: r.status, reason },
           client,
         });
-        // Seat freed -> waitlist promotion in the same transaction.
         const promoted = r.status === 'confirmed' ? await promoteFromWaitlist(client, ev) : [];
         return { ev, r, promoted };
       });
@@ -228,9 +201,6 @@ function organizerRsvpRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/capacity
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/capacity',
     authenticate(),

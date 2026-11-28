@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Service 12: the website on S3 (em-frontend), like Lab 7 Part 4.
-#   Uploads frontend/ with the right content types, writes the API address into
-#   shared/config.js, turns on static website hosting and makes ONLY this bucket
-#   publicly readable (the data buckets stay private).
-# Needs: step 11.
-# Run: bash infra/services/12-website.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 mkdir -p infra/.run
@@ -14,7 +8,7 @@ API_URL=${PUBLIC_API:-$ENDPOINT}/restapis/$API_ID/$STAGE/_user_request_
 SITE_KEY=$(envval TURNSTILE_SITE_KEY); SITE_KEY=${SITE_KEY:-1x00000000000000000000AA}
 
 step "Upload frontend/ -> s3://$B"
-awsl s3 rm s3://$B --recursive >/dev/null          # remove old files so deleted pages go offline
+awsl s3 rm s3://$B --recursive >/dev/null
 N=0
 while IFS= read -r FILE; do
   KEY=${FILE#frontend/}
@@ -28,7 +22,7 @@ while IFS= read -r FILE; do
     *)      TYPE=application/octet-stream ;;
   esac
   SRC=$FILE
-  if [ "$KEY" = shared/config.js ]; then          # point the website at our API Gateway
+  if [ "$KEY" = shared/config.js ]; then
     sed -e "s#API_BASE_URL:[[:space:]]*'[^']*'#API_BASE_URL: '$API_URL'#" \
         -e "s#TURNSTILE_SITE_KEY:[[:space:]]*'[^']*'#TURNSTILE_SITE_KEY: '$SITE_KEY'#" "$FILE" > infra/.run/config.js
     SRC=infra/.run/config.js

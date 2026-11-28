@@ -1,10 +1,4 @@
 'use strict';
-/**
- * Lazily created AWS SDK v3 clients, one per container (reused across invocations).
- * When AWS_ENDPOINT_URL is set (Floci emulator) every client points at it and S3
- * uses path-style addressing. SDK modules are required on first use to keep
- * cold starts small for functions that do not need them.
- */
 const config = require('./config');
 
 const cache = new Map();
@@ -13,7 +7,6 @@ function baseOptions() {
   const opts = { region: config.awsRegion };
   if (config.awsEndpointUrl) {
     opts.endpoint = config.awsEndpointUrl;
-    // Emulator only (Floci): it accepts any credentials. Real AWS uses the Lambda role's credentials.
     if (!process.env.AWS_ACCESS_KEY_ID) opts.credentials = { accessKeyId: 'test', secretAccessKey: 'test' };
   }
   return opts;
@@ -31,10 +24,6 @@ function s3() {
   });
 }
 
-/**
- * Client used only to SIGN presigned URLs. The browser must reach the signed
- * host, so S3_PUBLIC_ENDPOINT (e.g. the HTTPS tunnel to Floci) is used when set.
- */
 function s3Presigner() {
   return memo('s3Presigner', () => {
     const { S3Client } = require('@aws-sdk/client-s3');
@@ -73,7 +62,6 @@ function secretsManager() {
   });
 }
 
-/** Test/dev helper: drop cached clients (e.g. after changing AWS_ENDPOINT_URL). */
 function resetClients() {
   cache.clear();
 }

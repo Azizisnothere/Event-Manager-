@@ -1,6 +1,3 @@
-/* One login page for organizers and staff. The server returns the account's role with the JWT;
- * the page only chooses where to go next. Access is still enforced by the API on every request
- * (requireRole / authorizeEvent), so editing the role in sessionStorage gives a user nothing. */
 (function () {
   'use strict';
   var EM = window.EM;

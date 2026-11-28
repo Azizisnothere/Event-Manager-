@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Service 11: Amazon API Gateway - REST API em-api, stage prod  (Osama, deployment lead)
-#   The website calls ONE address; API Gateway sends each path to the right Lambda
-#   (the same path -> service mapping as dev-server.js). More specific paths win over
-#   {proxy+}, so /api/events/{id}/rsvps goes to rsvp-fn although /api/events/{id}/{proxy+}
-#   goes to events-fn. Any path not listed is rejected by API Gateway (never reaches a Lambda).
-#   Login checks (JWT / invitation token) happen inside the Lambdas.
-# Needs: step 9.
-# Run: bash infra/services/11-api-gateway.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 API_NAME=$P-api
@@ -20,7 +12,7 @@ if [ -z "$API_ID" ] || [ "$API_ID" = None ]; then
 else skip "$API_NAME ($API_ID)"; fi
 
 res_id() { awsl apigateway get-resources --rest-api-id $API_ID --limit 500 --query "items[?path=='$1'].id | [0]" --output text; }
-ensure_path() {          # creates /a, /a/b, ... as needed and prints the id of the last one
+ensure_path() {
   local p=$1 id parent part
   id=$(res_id "$p")
   if [ -n "$id" ] && [ "$id" != None ]; then echo "$id"; return; fi

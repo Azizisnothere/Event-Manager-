@@ -1,25 +1,14 @@
 'use strict';
-/**
- * Cloudflare Turnstile server-side verification (Section 1.5, Threat 6).
- * Returns { success: true } or { success: false, unavailable: boolean, codes: string[] }.
- * "unavailable" means Cloudflare could not be reached (the caller answers 503, not 403).
- * The secret key and the client token are never logged.
- */
 const { secrets, config, logger } = require('../../../../shared');
 
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const TIMEOUT_MS = 5000;
 
 function verifyUrl() {
-  // Override only for local testing against a stub; ignored in production.
   if (!config.isProduction && process.env.TURNSTILE_VERIFY_URL) return process.env.TURNSTILE_VERIFY_URL;
   return SITEVERIFY_URL;
 }
 
-/**
- * @param {string} token value produced by the Turnstile widget (cf-turnstile-response)
- * @param {string|null} remoteIp client IP from API Gateway
- */
 async function verifyTurnstile(token, remoteIp) {
   let secret;
   try {

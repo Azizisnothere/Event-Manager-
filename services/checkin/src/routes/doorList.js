@@ -1,9 +1,4 @@
 'use strict';
-/**
- * GET /api/events/:eventId/door-list   search confirmed guests   200 | 400, 401, 403, 404
- * Organizer (owner) or assigned staff (Threat 4). Least privilege: name, party size and
- * checked-in flag only - no emails, dietary notes or check-in codes.
- */
 const express = require('express');
 const {
   db,

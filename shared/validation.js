@@ -1,30 +1,9 @@
 'use strict';
-/**
- * Server-side input validation (Section 6.2 "Input validation", Threat 5).
- * Declarative schemas check types, lengths, ranges, enums and formats, and
- * REJECT UNKNOWN FIELDS (also blocks __proto__ / constructor injection).
- *
- * Rule shape:
- *   { type: 'string'|'email'|'uuid'|'integer'|'number'|'boolean'|'datetime'|'enum'|'array'|'object',
- *     required?: boolean, nullable?: boolean, default?: any,
- *     min?, max?            // string length, number value, array length
- *     values?: string[]     // enum
- *     pattern?: RegExp, patternMessage?: string,
- *     multiline?: boolean   // allow \n \r \t in strings
- *     trim?: boolean        // default true for strings
- *     lowercase?: boolean,
- *     items?: rule          // array element rule
- *     schema?: object, minFields?: number  // nested object
- *     custom?: (value) => string|null }   // extra check, returns an error message
- *
- * Options: { coerce: true } converts query-string values ('5', 'true') to numbers/booleans.
- */
 const { validationError } = require('./errors');
 const { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, LIMITS } = require('./constants');
 
 const EMAIL_PATTERN = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[A-Za-z]{2,}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// ISO 8601 with an explicit offset, so a value can never be interpreted in the server's local time.
 const DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const LINE_CHARS = /[\r\n\t]/;
@@ -33,7 +12,6 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function isPlainObject(v) {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
   const proto = Object.getPrototypeOf(v);
-  // querystring.parse (Express "simple" query parser) returns null-prototype objects.
   return proto === Object.prototype || proto === null;
 }
 
@@ -165,13 +143,6 @@ function validateObject(schema, input, basePath, errors, opts) {
   return out;
 }
 
-/**
- * Validates `input` against `schema`; returns the cleaned value or throws a 400 VALIDATION_ERROR.
- * Only fields declared in the schema are returned.
- * @param {object} schema
- * @param {any} input
- * @param {{ coerce?: boolean, allowUnknown?: boolean, minFields?: number }} [opts]
- */
 function validate(schema, input, opts = {}) {
   const errors = [];
   const value = validateObject(schema, input, '', errors, opts);
@@ -179,7 +150,6 @@ function validate(schema, input, opts = {}) {
   return value;
 }
 
-/** Common query fragments. */
 const paginationSchema = Object.freeze({
   limit: { type: 'integer', min: 1, max: MAX_PAGE_LIMIT, default: DEFAULT_PAGE_LIMIT },
   offset: { type: 'integer', min: 0, max: 1_000_000, default: 0 },

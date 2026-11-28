@@ -1,13 +1,4 @@
 'use strict';
-/**
- * rsvp-consumer-fn: consumes em-rsvp-events (SNS em-domain-events, filtered) (A1, A38).
- *   event.capacity_changed  promote from the waitlist if seats were added
- *   event.updated           email guests about the changed details
- *   event.cancelled         cancel all active RSVPs (event_cancelled) and email the guests
- *   invitation.revoked      cancel that guest's RSVP, free the seat, promote from the waitlist
- * Each change runs in one transaction holding the event row lock (SELECT ... FOR UPDATE),
- * the same lock the API uses, so promotions never over-book. Idempotent per message.
- */
 const { db, messaging, sqsHandler, constants, utils, logger } = require('../../../shared');
 const { lockEvent } = require('../src/lib/capacity');
 const { promoteFromWaitlist } = require('../src/lib/waitlist');
@@ -17,7 +8,6 @@ const M = constants.MESSAGE_TYPES;
 const T = constants.EMAIL_TEMPLATES;
 const log = logger.child({ function_role: 'rsvp-consumer' });
 
-/** Invitations that have been emailed and not revoked (guests who know about the event). */
 async function notifiableGuests(eventId, excludeStatuses) {
   const { rows } = await db.query(
     `SELECT i.invitation_id, i.guest_name, i.guest_email
@@ -69,7 +59,6 @@ async function onEventCancelled(envelope) {
   const ev = await db.withTransaction(async (client) => {
     const locked = await lockEvent(client, envelope.event_id);
     if (!locked || locked.status !== 'cancelled') return null;
-    // event.cancelled cancels all RSVPs; cancelled_from_status keeps the previous status.
     await client.query(
       `UPDATE rsvps
           SET status = 'event_cancelled', cancelled_at = now(), cancelled_from_status = status
@@ -99,7 +88,6 @@ async function onInvitationRevoked(envelope) {
     );
     const r = rows[0];
     if (!r || !['confirmed', 'waitlisted'].includes(r.status)) return { ev, r: null, promoted: [] };
-    // Revoking frees the seat.
     await client.query(
       `UPDATE rsvps SET status = 'cancelled_by_organizer', cancelled_at = now(), cancelled_from_status = $2,
               cancel_reason = 'invitation_revoked'

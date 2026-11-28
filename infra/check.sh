@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Checks what the service scripts built. Run: bash infra/check.sh
 source "$(dirname "$0")/services/_lib.sh" || exit 1
 PASS=0; FAIL=0
 check() { if eval "$2" >/dev/null 2>&1; then echo "  PASS $1"; PASS=$((PASS+1)); else echo "  FAIL $1"; FAIL=$((FAIL+1)); fi; }

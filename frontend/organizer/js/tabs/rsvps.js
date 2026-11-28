@@ -1,4 +1,3 @@
-/* RSVPs tab: replies with filters; cancel a suspicious RSVP with a reason. */
 (function () {
   'use strict';
   var EM = window.EM;

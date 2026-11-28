@@ -1,17 +1,4 @@
 'use strict';
-/**
- * Email job helper. Services never call Brevo directly: they queue a job on the
- * SQS queue NOTIFICATIONS_QUEUE_URL (em-notifications) and the notifier Lambda
- * (services/events/lambdas/notifier.js) sends it. This buffers bursts and protects
- * the 300/day Brevo quota (Threat 6), and keeps the Brevo key readable by one function only (Threat 8).
- *
- * Job format:
- *   { job_id, template, to: { email, name }, params: {...}, created_at }
- * The queue message is the only place a raw invitation link may appear outside the email itself;
- * it is never logged.
- *
- * Call AFTER the database transaction has committed.
- */
 const crypto = require('crypto');
 const config = require('./config');
 const { logger } = require('./logger');
@@ -24,9 +11,6 @@ const { chunk } = require('./utils');
 const VALID_TEMPLATES = new Set(Object.values(EMAIL_TEMPLATES));
 const MAX_JOB_BYTES = 200 * 1024;
 
-/**
- * @param {{ template: string, to: { email: string, name?: string }, params?: object }} input
- */
 function buildEmailJob({ template, to, params = {} }) {
   if (!VALID_TEMPLATES.has(template)) throw new Error(`Unknown email template: ${template}`);
   if (!to || typeof to.email !== 'string' || !EMAIL_PATTERN.test(to.email)) {
@@ -43,10 +27,6 @@ function buildEmailJob({ template, to, params = {} }) {
   return job;
 }
 
-/**
- * Queues one or more email jobs. Returns the number queued.
- * @param {Array<{ template: string, to: { email: string, name?: string }, params?: object }>} inputs
- */
 async function enqueueEmails(inputs) {
   const jobs = inputs.map(buildEmailJob);
   if (!jobs.length) return 0;
@@ -86,7 +66,6 @@ async function enqueueEmail(input) {
   return enqueueEmails([input]);
 }
 
-/** Parses and validates a job from an SQS record (used by the notifier). */
 function parseEmailJob(record) {
   const job = JSON.parse(record.body);
   if (!job || typeof job !== 'object') throw new Error('Email job is not an object');

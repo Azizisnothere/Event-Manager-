@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Step 10: connect the background Lambdas to what starts them.
-#   SQS -> Lambda   em-rsvp-events -> em-rsvp-consumer-fn
-#                   em-checkin-events -> em-report-fn
-#                   em-notifications -> em-notifier-fn
-#                   (ReportBatchItemFailures: only failed messages are retried, then -> DLQ)
-#   S3 -> Lambda    a new CSV in em-guest-imports/imports/ -> em-import-fn   (Osama)
-#   EventBridge     em-scheduler-every-5-min -> em-scheduler-fn              (Osama)
-#   Each "add-permission" says exactly WHO may call the function (resource policy).
-# Needs: steps 3, 1, 6 and 9.
-# Run: bash infra/services/10-triggers.sh      (safe to run again)
 set -e
 source "$(dirname "$0")/_lib.sh"
 mkdir -p infra/.run

@@ -1,25 +1,12 @@
 'use strict';
-/**
- * notifier-fn: consumes email jobs from SQS em-notifications and sends them through Brevo.
- * - Only this function reads the Brevo API key (Section 6.2 "Least privilege", Threat 8).
- * - Jobs are idempotent by job_id, so an SQS redelivery does not send the same email twice.
- * - Transient failures are retried by SQS and end in the DLQ; permanent rejections are logged
- *   and dropped. Recipient addresses and links are never logged.
- */
 const { emailQueue, requestGuard, sqsHandler, logger } = require('../../../shared');
 const { renderEmail } = require('../src/lib/emailTemplates');
 const { sendEmail } = require('../src/lib/brevo');
 
 const log = logger.child({ function_role: 'notifier' });
 
-/** Default transport: Brevo. The local dev server passes a file transport instead. */
 const brevoTransport = { send: sendEmail };
 
-/**
- * Renders and sends one job.
- * @param {object} job parsed email job
- * @param {{ transport?: { send: Function }, idempotent?: boolean }} [opts]
- */
 async function processJob(job, opts = {}) {
   const transport = opts.transport || brevoTransport;
   const idempotent = opts.idempotent !== false;

@@ -1,5 +1,3 @@
-// infra/teardown.js  Removes everything infra/deploy.js created (design 6: "resources are removed after the
-// assessment with infra/teardown"). Neon is not touched.   npm run teardown
 require('dotenv').config({ quiet: true, path: require('path').join(__dirname, '..', '.env') });
 
 const { SecretsManagerClient, DeleteSecretCommand } = require('@aws-sdk/client-secrets-manager');

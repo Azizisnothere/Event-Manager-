@@ -1,14 +1,4 @@
 'use strict';
-/**
- * Secrets loader (Section 6.2 "Secrets handling", Threat 8).
- * - Deployed: the Lambda env holds only the secret NAME (e.g. JWT_SECRET_NAME=em/jwt-secret);
- *   the value is fetched from Secrets Manager and cached per container.
- * - Local development (NODE_ENV !== 'production'): if the *_SECRET_NAME variable is not set,
- *   the value is read from a plain env var loaded from the git-ignored .env file.
- * - Production with a missing secret name fails loudly instead of falling back.
- * Each function only ever requests the secrets it uses, so its IAM role can be limited to them.
- * Secret values are never logged.
- */
 const config = require('./config');
 const { logger } = require('./logger');
 const aws = require('./awsClients');
@@ -22,7 +12,7 @@ const SECRET_DEFS = Object.freeze({
   geoapifyApiKey: { nameEnv: 'GEOAPIFY_API_KEY_SECRET_NAME', localEnv: 'GEOAPIFY_API_KEY' },
 });
 
-const cache = new Map(); // key -> { promise, fetchedAt }
+const cache = new Map();
 
 class SecretConfigError extends Error {
   constructor(message) {
@@ -68,11 +58,6 @@ async function fetchSecret(key) {
   return validateSecret(key, local);
 }
 
-/**
- * Returns the secret value, cached per container for SECRETS_CACHE_TTL_SECONDS (default 1 h)
- * so a rotated secret is picked up without redeploying.
- * @param {'dbUrl'|'jwtSecret'|'turnstileSecret'|'brevoApiKey'|'geoapifyApiKey'} key
- */
 async function getSecret(key) {
   const ttlMs = config.secretsCacheTtlSeconds * 1000;
   const hit = cache.get(key);
@@ -85,7 +70,6 @@ async function getSecret(key) {
   return promise;
 }
 
-/** True when the given secret can be loaded in this environment. */
 function isSecretConfigured(key) {
   const def = SECRET_DEFS[key];
   if (!def) return false;
@@ -93,11 +77,6 @@ function isSecretConfigured(key) {
   return !config.isProduction && Boolean(process.env[def.localEnv]);
 }
 
-/**
- * Health check: confirms Secrets Manager is reachable (not cached).
- * Uses DescribeSecret on the JWT secret so no secret value is read.
- * @returns {Promise<'ok'|'local-env'>}
- */
 async function checkSecretsManager() {
   const name = process.env[SECRET_DEFS.jwtSecret.nameEnv];
   if (!name) {

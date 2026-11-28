@@ -1,4 +1,3 @@
-/* Live attendance tab: arrivals vs expected, occupancy with the 90% warning, recent arrivals and check-in history with undo. */
 (function () {
   'use strict';
   var EM = window.EM;

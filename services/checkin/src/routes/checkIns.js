@@ -1,14 +1,4 @@
 'use strict';
-/**
- * Door check-in and corrections (Section 5.1, owner: Adham):
- *   POST  /api/events/:eventId/check-ins              record arrival (rsvp_id or code)  201 | 400, 401, 403, 404, 409
- *   GET   /api/events/:eventId/check-ins              history incl. voided ones        200 | 401, 403, 404
- *   PATCH /api/events/:eventId/check-ins/:checkinId   undo (soft void) with a reason   200 | 400, 401, 403, 404, 409
- * Rules: only confirmed RSVPs of this event; only the owning organizer or assigned staff
- * (Threat 4); only inside the check-in window; people_arrived <= party_size; one active
- * check-in per RSVP (partial unique index -> 409, audited); staff undo only their own
- * check-ins within 15 minutes, organizers until the event is completed (Threat 9).
- */
 const express = require('express');
 const {
   db,
@@ -45,9 +35,6 @@ function checkInRoutes() {
   const router = express.Router();
   const doorAccess = [authenticate(), requireRole('organizer', 'staff'), authorizeEvent({ allowStaff: true })];
 
-  // ---------------------------------------------------------------------------
-  // POST /api/events/:eventId/check-ins
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/events/:eventId/check-ins',
     ...doorAccess,
@@ -62,7 +49,6 @@ function checkInRoutes() {
       let created;
       try {
         created = await db.withTransaction(async (client) => {
-          // Re-check access while locking the event row (owner in WHERE / event_staff join).
           const ev = await eventAccess.findAccessibleEvent(client, req.event.event_id, req.user, {
             allowStaff: true,
             forUpdate: true,
@@ -75,7 +61,6 @@ function checkInRoutes() {
               event_status: ev.status,
             });
           }
-          // Only RSVPs of THIS event can be found (event_id in WHERE).
           const { rows } = await client.query(
             `SELECT r.rsvp_id, r.status, r.party_size, i.guest_name
                FROM rsvps r JOIN invitations i ON i.invitation_id = r.invitation_id
@@ -108,14 +93,12 @@ function checkInRoutes() {
             );
             return { ...ins[0], guest_name: r.guest_name, party_size: r.party_size };
           } catch (err) {
-            // Backstop: the partial unique index check_ins_one_active_per_rsvp.
             if (db.isUniqueViolation(err, 'check_ins_one_active_per_rsvp')) throw new DuplicateCheckIn(r.rsvp_id, null);
             throw err;
           }
         });
       } catch (err) {
         if (err instanceof DuplicateCheckIn) {
-          // Written after the rollback so the audit row is kept.
           await audit.auditFromRequest(req, AUDIT_EVENT_TYPES.DUPLICATE_CHECKIN, {
             targetId: err.rsvpId,
             detail: { existing_checkin_id: err.existingCheckinId },
@@ -138,9 +121,6 @@ function checkInRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/events/:eventId/check-ins
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/events/:eventId/check-ins',
     ...doorAccess,
@@ -193,9 +173,6 @@ function checkInRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // PATCH /api/events/:eventId/check-ins/:checkinId  (undo = soft void)
-  // ---------------------------------------------------------------------------
   router.patch(
     '/api/events/:eventId/check-ins/:checkinId',
     ...doorAccess,
@@ -216,10 +193,8 @@ function checkInRoutes() {
         if (!rows.length) throw errors.notFound('Check-in not found.', 'CHECKIN_NOT_FOUND');
         const c = rows[0];
         if (c.status === 'voided') throw errors.conflict('This check-in has already been undone.', 'ALREADY_VOIDED');
-        // Organizers may undo until the event is completed (staff too are bound by this).
         if (ev.status === 'completed') throw errors.conflict('Check-ins of a completed event cannot be changed.', 'EVENT_COMPLETED');
         if (req.user.role === 'staff') {
-          // Threat 9: staff may undo only their own check-ins, within 15 minutes.
           if (c.checked_in_by !== req.user.user_id) {
             throw errors.forbidden('Staff can only undo their own check-ins.', { auditDetail: { reason: 'not_own_checkin' } });
           }
@@ -233,7 +208,6 @@ function checkInRoutes() {
             RETURNING checkin_id, rsvp_id, status, voided_at, void_reason`,
           [checkinId, req.user.user_id, reason],
         );
-        // Undo keeps the record and is written to the insert-only audit log (Threat 9).
         await audit.auditFromRequest(req, AUDIT_EVENT_TYPES.CHECKIN_VOIDED, {
           eventId: ev.event_id,
           targetId: checkinId,
