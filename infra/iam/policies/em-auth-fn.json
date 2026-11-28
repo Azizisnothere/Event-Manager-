@@ -1,0 +1,12 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "Logs", "Effect": "Allow", "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], "Resource": "arn:aws:logs:us-east-1:000000000000:log-group:/aws/lambda/em-auth-fn:*" },
+    { "Sid": "ReadSecrets", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": ["arn:aws:secretsmanager:us-east-1:000000000000:secret:em/db-url*", "arn:aws:secretsmanager:us-east-1:000000000000:secret:em/jwt-secret*"] },
+    { "Sid": "HealthCheckSecretsReachable", "Effect": "Allow", "Action": ["secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:us-east-1:000000000000:secret:em/jwt-secret*" },
+    { "Sid": "LoginLockoutAndRateLimits", "Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:000000000000:table/em-request-guard" }
+  ]
+}

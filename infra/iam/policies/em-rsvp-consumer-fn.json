@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "Logs", "Effect": "Allow", "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], "Resource": "arn:aws:logs:us-east-1:000000000000:log-group:/aws/lambda/em-rsvp-consumer-fn:*" },
+    { "Sid": "ReadSecrets", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": ["arn:aws:secretsmanager:us-east-1:000000000000:secret:em/db-url*", "arn:aws:secretsmanager:us-east-1:000000000000:secret:em/jwt-secret*"] },
+    { "Sid": "ReadRsvpEventsQueue", "Effect": "Allow", "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+      "Resource": "arn:aws:sqs:us-east-1:000000000000:em-rsvp-events" },
+    { "Sid": "QueueEmails", "Effect": "Allow", "Action": ["sqs:SendMessage"],
+      "Resource": "arn:aws:sqs:us-east-1:000000000000:em-notifications" },
+    { "Sid": "IdempotencyKeys", "Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:000000000000:table/em-request-guard" }
+  ]
+}
