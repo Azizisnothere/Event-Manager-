@@ -1,7 +1,3 @@
-/*
- * Event detail page: summary, status actions and the tab host. Each tab registers itself on
- * window.EMTabs[name] = { mount(container, ctx) -> optional cleanup function }.
- */
 (function () {
   'use strict';
   var EM = window.EM;

@@ -1,9 +1,3 @@
-// shared/appFactory.js  Builds the Express app with the fixed middleware order (proposal 5.2 / 6.2):
-//   request id + client IP -> access log -> security headers -> CORS (frontend origin only)
-//   -> JSON parser (10 KB, 64 KB for the pasted guest list) -> 415 check
-//   -> [per route] authenticate -> authorize -> validateRequest -> handler
-//   -> 404 -> error handler (generic 500; every 401/403 written to audit_log)
-// The same app runs on the PC (dev-server.js, app.listen) and on Lambda (shared/lambdaHttp.js).
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -15,7 +9,6 @@ function corsOrigins() {
   return (process.env.CORS_ORIGINS || 'http://localhost:8080').split(',').map((o) => o.trim()).filter(Boolean);
 }
 
-// API Gateway's source IP (REST v1 and HTTP v2 shapes). X-Forwarded-For is NOT trusted.
 function clientIpFrom(req) {
   const rc = req.lambdaEvent && req.lambdaEvent.requestContext;
   const ip = (rc && rc.identity && rc.identity.sourceIp) || (rc && rc.http && rc.http.sourceIp) || (req.socket && req.socket.remoteAddress);
@@ -25,7 +18,7 @@ function clientIpFrom(req) {
 function parseLambdaBody(req, limitBytes) {
   const raw = req.body;
   req.body = undefined;
-  if (!raw.length || !req.is('application/json')) return undefined; // the 415 check below handles non-JSON
+  if (!raw.length || !req.is('application/json')) return undefined;
   if (raw.length > limitBytes) return Object.assign(new Error('too large'), { type: 'entity.too.large', status: 413 });
   try {
     const parsed = JSON.parse(raw.toString('utf8'));
@@ -37,30 +30,27 @@ function parseLambdaBody(req, limitBytes) {
   }
 }
 
-// 401 and 403 are written to audit_log here so no route can forget.  [Threat 3, 4, 9]
 async function auditDenied(req, error) {
   if (error.audited || (error.status !== 401 && error.status !== 403)) return;
-  const { auditFromRequest } = require('./audit'); // lazy: audit -> db -> secrets would load early
+  const { auditFromRequest } = require('./audit');
   const { AUDIT_EVENT_TYPES } = require('./constants');
   await auditFromRequest(req, error.status === 401 ? AUDIT_EVENT_TYPES.AUTH_FAILED : AUDIT_EVENT_TYPES.ACCESS_DENIED, {
     detail: { route: routePattern(req), method: req.method, code: error.code, ...(error.auditDetail || {}) }
   });
 }
 
-// routers: express.Router() objects that use FULL paths (/api/...).
-// largeBodyPaths: regexes of routes allowed 64 KB (pasted CSV guest list) instead of 10 KB.
 function createApp(routers, { largeBodyPaths = [] } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.disable('etag');
-  app.set('trust proxy', false);        // the client IP comes from API Gateway, not from headers
-  app.set('query parser', 'simple');    // no nested objects/arrays from the query string
+  app.set('trust proxy', false);
+  app.set('query parser', 'simple');
 
   app.use((req, res, next) => {
     const rc = req.lambdaEvent && req.lambdaEvent.requestContext;
     req.id = (req.lambdaContext && req.lambdaContext.awsRequestId) || (rc && rc.requestId) || crypto.randomUUID();
     req.clientIp = clientIpFrom(req);
-    req.valid = { body: {}, query: {}, params: {} }; // filled by validateRequest; handlers read only this
+    req.valid = { body: {}, query: {}, params: {} };
     res.set('X-Request-Id', req.id);
     res.set('Cache-Control', 'no-store');
     next();
@@ -79,19 +69,16 @@ function createApp(routers, { largeBodyPaths = [] } = {}) {
   const largeJson = express.json({ limit: '64kb' });
   app.use((req, res, next) => {
     const large = largeBodyPaths.some((re) => re.test(req.path));
-    // On Lambda, serverless-http has already read the body into a Buffer, so express.json() skips it.
-    // Apply the same rules here: size limit, JSON only, valid JSON object or array.
     if (Buffer.isBuffer(req.body)) return next(parseLambdaBody(req, large ? 64 * 1024 : 10 * 1024));
     return (large ? largeJson : smallJson)(req, res, next);
   });
 
-  // 415 when a body is sent that is not JSON  [Lab 4 Part 3]
   app.use((req, res, next) => {
     const hasBody = Number(req.get('content-length') || 0) > 0 || req.get('transfer-encoding');
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && hasBody && !req.is('application/json')) {
       return next(new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Content-Type must be application/json.'));
     }
-    if (req.body === undefined) req.body = {}; // Express 5 leaves it undefined when nothing was sent
+    if (req.body === undefined) req.body = {};
     return next();
   });
 
@@ -99,7 +86,6 @@ function createApp(routers, { largeBodyPaths = [] } = {}) {
 
   app.use((req, res) => res.status(404).json({ error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found.' } }));
 
-  // eslint-disable-next-line no-unused-vars
   app.use(async (error, req, res, next) => {
     if (error instanceof AppError) {
       try {
@@ -119,7 +105,6 @@ function createApp(routers, { largeBodyPaths = [] } = {}) {
     if (typeof error.type === 'string' && error.status && error.status < 500) {
       return sendError(res, new AppError(400, 'VALIDATION_ERROR', 'Request body could not be read.'));
     }
-    // Unexpected error: details only in the logs; the client gets a generic message (proposal 5.1).
     logger.error('unhandled error', { requestId: req.id, route: routePattern(req), error });
     return sendError(res, new AppError(500, 'INTERNAL_ERROR', 'An unexpected server error occurred.'));
   });

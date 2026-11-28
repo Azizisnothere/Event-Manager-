@@ -1,7 +1,3 @@
-/*
- * Door app: check in by code or by name, set people arrived, undo own check-ins within 15 minutes,
- * live counts refreshed by polling. Staff see names, party sizes and counts only.
- */
 (function () {
   'use strict';
   var EM = window.EM;
@@ -114,7 +110,6 @@
     }
   }
 
-  // ---- by code -------------------------------------------------------------
   var codeForm = ui.$('#code-form');
   codeForm.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -133,7 +128,6 @@
     codeForm.code.focus();
   });
 
-  // ---- by name -------------------------------------------------------------
   var searchForm = ui.$('#search-form');
   async function search() {
     var q = searchForm.search.value.trim();
@@ -171,7 +165,6 @@
     search();
   });
 
-  // ---- header --------------------------------------------------------------
   EM.api(base)
     .then(function (data) {
       ui.$('#event-title').textContent = data.event.title;

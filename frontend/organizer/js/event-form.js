@@ -56,7 +56,6 @@
     return p;
   }
 
-  /** For PATCH, send only what changed. */
   function changedFields(v) {
     var out = {};
     Object.keys(v).forEach(function (k) {
@@ -68,7 +67,6 @@
         out[k] = now;
       }
     });
-    // Re-sending the same address asks the server to verify it again.
     if (!original.venue_verified && !('venue_address' in out)) out.venue_address = v.venue_address;
     return out;
   }
@@ -124,7 +122,6 @@
         data = await EM.api('/api/events', { method: 'POST', body: v });
       }
       if (data.warnings && data.warnings.length) {
-        // Saved, but the venue could not be verified right now.
         sessionStorage.setItem('em_flash', data.warnings[0].message);
       }
       window.location.href = 'event.html?id=' + encodeURIComponent(data.event.event_id);

@@ -1,10 +1,4 @@
 'use strict';
-/**
- * Capacity helpers. Every capacity decision runs inside ONE transaction that first locks the
- * event row with SELECT ... FOR UPDATE, so two guests cannot take the same last seat
- * (Section 5.2 step 4). Headcount = party_size; capacity is compared with the sum of
- * party_size over confirmed RSVPs.
- */
 const { crypto: emCrypto, utils } = require('../../../../shared');
 
 const EVENT_LOCK_COLUMNS =
@@ -13,13 +7,11 @@ const EVENT_LOCK_COLUMNS =
 const RSVP_COLUMNS = `rsvp_id, invitation_id, event_id, status, party_size, dietary_notes, check_in_code,
   waitlisted_at, promoted_at, cancelled_at, cancelled_from_status, cancel_reason, responded_at, updated_at`;
 
-/** Locks the event row for the rest of the transaction. */
 async function lockEvent(client, eventId) {
   const { rows } = await client.query(`SELECT ${EVENT_LOCK_COLUMNS} FROM events WHERE event_id = $1 FOR UPDATE`, [eventId]);
   return rows[0] || null;
 }
 
-/** Sum of party_size over confirmed RSVPs (optionally excluding one RSVP being resized). */
 async function confirmedHeadcount(client, eventId, excludeRsvpId = null) {
   const { rows } = await client.query(
     `SELECT COALESCE(sum(party_size), 0)::int AS headcount
@@ -30,10 +22,6 @@ async function confirmedHeadcount(client, eventId, excludeRsvpId = null) {
   return rows[0].headcount;
 }
 
-/**
- * New check-in code unique within the event. The caller holds the event lock, so no other
- * transaction can insert a code for this event concurrently; rsvps_event_code_uq is the backstop.
- */
 async function newCheckInCode(client, eventId) {
   for (let i = 0; i < 25; i += 1) {
     const code = emCrypto.generateCheckInCode();
@@ -43,7 +31,6 @@ async function newCheckInCode(client, eventId) {
   throw new Error('Could not generate a unique check-in code');
 }
 
-/** 1-based waitlist position (first-come by waitlisted_at, ties by rsvp_id). */
 async function waitlistPosition(client, eventId, rsvp) {
   if (!rsvp || rsvp.status !== 'waitlisted') return null;
   const { rows } = await client.query(
@@ -56,7 +43,6 @@ async function waitlistPosition(client, eventId, rsvp) {
   return rows[0].position;
 }
 
-/** Guest-facing RSVP view; the check-in code is only shown while confirmed. */
 function toGuestRsvp(r, position) {
   if (!r) return null;
   return {

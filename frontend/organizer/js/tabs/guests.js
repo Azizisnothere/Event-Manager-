@@ -1,4 +1,3 @@
-/* Guest list tab: add guests, CSV import with status, search/filter, revoke, resend, repeat no-show badge. */
 (function () {
   'use strict';
   var EM = window.EM;
@@ -16,7 +15,6 @@
       var pollTimer = null;
       var alive = true;
 
-      // ---- add one guest -------------------------------------------------
       var nameIn = el('input', { attrs: { type: 'text', id: 'g-name', maxlength: 100, required: true } });
       var emailIn = el('input', { attrs: { type: 'email', id: 'g-email', maxlength: 254, required: true } });
       var allowIn = el('select', { attrs: { id: 'g-allow' } }, [0, 1, 2, 3].map(function (n) { return el('option', { text: String(n), attrs: { value: n } }); }));
@@ -54,7 +52,6 @@
         }
       });
 
-      // ---- CSV import -------------------------------------------------------
       var fileIn = el('input', { attrs: { type: 'file', accept: '.csv,text/csv', id: 'g-file' } });
       var importStatus = el('div', { class: 'small', attrs: { 'aria-live': 'polite' } });
       var uploadBtn = el('button', { class: 'btn btn-ghost', text: 'Upload CSV', attrs: { type: 'button' } });
@@ -108,7 +105,6 @@
         ui.setBusy(uploadBtn, true, 'Uploading...');
         try {
           var created = await EM.api(ctx.base + '/invitations/imports', { method: 'POST', body: {} });
-          // The presigned PUT URL is valid for 5 minutes and only for this file.
           var put = await fetch(created.upload.url, { method: 'PUT', headers: created.upload.headers, body: file, referrerPolicy: 'no-referrer' });
           if (!put.ok) throw new EM.ApiError(put.status, 'UPLOAD_FAILED', 'The upload failed (' + put.status + '). Try again.');
           renderImport(created.import);
@@ -120,7 +116,6 @@
         }
       });
 
-      // ---- list ---------------------------------------------------------------
       var searchIn = el('input', { attrs: { type: 'search', placeholder: 'Search name or email', maxlength: 100, 'aria-label': 'Search guests' } });
       var statusSel = el('select', { attrs: { 'aria-label': 'Invitation status' } },
         el('option', { text: 'All invitations', attrs: { value: '' } }),

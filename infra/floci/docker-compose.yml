@@ -1,7 +1,3 @@
-# Floci: a free copy of AWS that runs on your laptop (https://floci.io)
-#   Start:    docker compose -f infra/floci/docker-compose.yml up -d
-#   Console:  http://localhost:4566/_floci/ui   (Floci Dash, looks like the AWS Console)
-#   Stop:     docker compose -f infra/floci/docker-compose.yml down   (your data is kept)
 name: event-manager
 
 services:
@@ -9,26 +5,22 @@ services:
     image: floci/floci@sha256:a0fbf944d7f338cc0856f1ef83831ea749ff2be71956eb7a7fce08fc21458e19
     container_name: floci
     ports:
-      - "127.0.0.1:4566:4566"                  # only your own PC can reach Floci
+      - "127.0.0.1:4566:4566"
     environment:
       FLOCI_HOSTNAME: floci
-      FLOCI_STORAGE_MODE: persistent           # keep tables and functions after a restart
+      FLOCI_STORAGE_MODE: persistent
       FLOCI_STORAGE_PERSISTENT_PATH: /app/data
       FLOCI_SERVICES_UI_BIND_ADDRESS: "127.0.0.1"
-      # Use Floci Dash (AWS-Console style) as the web console
       FLOCI_BASE_URL: http://floci:4566
       FLOCI_SERVICES_UI_IMAGE: ghcr.io/ofsazib/floci-dash:latest
       FLOCI_SERVICES_UI_CONTAINER_NAME: floci-dash
       FLOCI_SERVICES_UI_ENDPOINT_ENV: FLOCI_URL
       FLOCI_SERVICES_UI_STATUS_PATH: /api/healthz
-      # Lambda containers join this compose network, so they reach Floci at http://floci:4566
-      # (infra/deploy.js sets AWS_ENDPOINT_URL to that for every function)
       FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK: event-manager_default
-      # IAM policies are only checked when this is true (IAM_ENFORCEMENT=true before docker compose up).
       FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: ${IAM_ENFORCEMENT:-false}
     volumes:
       - floci-data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock   # lets Floci run Lambda functions
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   floci-data:

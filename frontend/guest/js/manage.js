@@ -1,7 +1,3 @@
-/*
- * Manage my reply: change party size and dietary notes, accept again, or cancel.
- * Before the deadline everything can change; after it only cancelling is possible (until the start).
- */
 (function () {
   'use strict';
   var EM = window.EM;

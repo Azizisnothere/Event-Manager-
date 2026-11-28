@@ -1,7 +1,4 @@
 'use strict';
-/**
- * Response shaping for events: explicit fields only, ISO dates, numeric coordinates.
- */
 const { utils } = require('../../../../shared');
 
 function toEventResponse(row, extra = {}) {
@@ -28,7 +25,6 @@ function toEventResponse(row, extra = {}) {
   };
 }
 
-/** Headcount figures used by the dashboard, the event page and the capacity rules. */
 async function eventStats(client, eventId) {
   const { rows } = await client.query(
     `SELECT

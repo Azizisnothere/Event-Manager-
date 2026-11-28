@@ -1,23 +1,4 @@
 'use strict';
-/**
- * Email templates rendered by the notifier. Every parameter is HTML-escaped (Threat 5:
- * guest names and reasons are user input). Threat 2: every RSVP change is confirmed
- * to the invitee by email, so a misused link is noticed.
- *
- * Parameters per template (all times ISO 8601 strings):
- *   invitation         guest_name, event_title, host_name, start_time, end_time, venue_address,
- *                      rsvp_deadline, plus_one_allowance, invitation_url, resend
- *   event_updated      guest_name, event_title, changed_fields[], start_time, end_time, venue_address, rsvp_deadline
- *   event_cancelled    guest_name, event_title, reason
- *   rsvp_confirmed     guest_name, event_title, start_time, venue_address, party_size, check_in_code
- *   rsvp_waitlisted    guest_name, event_title, party_size, waitlist_position
- *   rsvp_declined      guest_name, event_title
- *   rsvp_updated       guest_name, event_title, status, party_size, check_in_code, waitlist_position
- *   rsvp_cancelled     guest_name, event_title, cancelled_by ('guest' | 'organizer')
- *   rsvp_promoted      guest_name, event_title, start_time, venue_address, party_size, check_in_code
- *   plus_one_decision  guest_name, event_title, companion_name, decision ('approved' | 'denied'), plus_one_allowance
- *   staff_setup        staff_name, organizer_name, setup_url, expires_hours
- */
 const { constants } = require('../../../../shared');
 
 const T = constants.EMAIL_TEMPLATES;
@@ -52,7 +33,6 @@ function fmt(iso) {
 }
 
 function safeUrl(url) {
-  // Only http(s) links are ever placed in an email.
   return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : '';
 }
 
@@ -65,10 +45,6 @@ const FIELD_LABELS = {
   rsvp_deadline: 'reply deadline',
 };
 
-/**
- * Builds { subject, text, html } from a list of paragraphs.
- * Each block: string (paragraph), { code }, { button: { label, url } }, { list: [] }.
- */
 function layout(subject, greetingName, blocks) {
   const textParts = [`Hello ${greetingName || ''},`.replace(' ,', ',')];
   const htmlParts = [`<p>Hello ${esc(greetingName)},</p>`];
@@ -205,11 +181,6 @@ const renderers = {
     ]),
 };
 
-/**
- * @param {string} template one of EMAIL_TEMPLATES
- * @param {object} params
- * @returns {{ subject: string, text: string, html: string }}
- */
 function renderEmail(template, params) {
   const render = renderers[template];
   if (!render) throw new Error(`No renderer for template ${template}`);

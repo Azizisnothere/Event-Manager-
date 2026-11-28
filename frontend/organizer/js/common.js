@@ -1,4 +1,3 @@
-/* Organizer pages: login guard and the user / logout area of the top bar. */
 (function () {
   'use strict';
   var EM = window.EM;

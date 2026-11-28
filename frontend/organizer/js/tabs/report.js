@@ -1,4 +1,3 @@
-/* Report tab: final attendance, no-show list, late cancellations and the CSV download (after completion). */
 (function () {
   'use strict';
   var EM = window.EM;
@@ -20,7 +19,6 @@
         ui.setBusy(button, true, 'Preparing...');
         try {
           var data = await EM.api(ctx.base + '/attendance/report/download');
-          // A private, 5-minute presigned link (Threat 7).
           var a = el('a', { attrs: { href: data.download.url, rel: 'noopener noreferrer' } });
           document.body.appendChild(a);
           a.click();

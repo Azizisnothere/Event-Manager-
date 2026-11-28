@@ -1,12 +1,4 @@
 'use strict';
-/**
- * PATCH /api/events/:eventId/status   publish, close RSVPs, complete or cancel   200 | 400, 401, 403, 404, 409
- * Rules (Section 1.2 / 5.1):
- *  - invalid transitions -> 409 (statusMachine)
- *  - publish needs at least one invitation and a verified venue, and a future RSVP deadline (A5)
- *  - manual completion only after start_time (A4)
- *  - cancel cascades to RSVPs through event.cancelled; complete triggers the report through event.completed
- */
 const express = require('express');
 const {
   db,
@@ -41,7 +33,7 @@ function eventStatusRoutes() {
 
       const outcome = await db.withTransaction(async (client) => {
         const ev = await eventAccess.findOwnedEvent(client, req.event.event_id, req.user.user_id, { forUpdate: true });
-        assertTransition(ev.status, target); // invalid transition -> 409
+        assertTransition(ev.status, target);
         const now = Date.now();
         let emailJobs = [];
         let updated;
@@ -64,7 +56,6 @@ function eventStatusRoutes() {
             `UPDATE events SET status = 'published' WHERE event_id = $1 AND organizer_id = $2 RETURNING ${RETURNING}`,
             [ev.event_id, req.user.user_id],
           ));
-          // Issue tokens for invitations that were never emailed and queue the invitations.
           const { rows: unsent } = await client.query(
             `SELECT invitation_id FROM invitations WHERE event_id = $1 AND status = 'pending'`,
             [ev.event_id],
@@ -78,7 +69,6 @@ function eventStatusRoutes() {
             [ev.event_id, req.user.user_id],
           ));
         } else if (target === 'completed') {
-          // The organizer may complete manually any time after start_time.
           if (new Date(ev.start_time).getTime() > now) {
             throw errors.conflict('An event can only be completed after it has started.', 'EVENT_NOT_STARTED');
           }
@@ -97,7 +87,6 @@ function eventStatusRoutes() {
         return { updated, emailJobs };
       });
 
-      // After COMMIT: emails and cross-service messages.
       let emailsQueued = 0;
       if (outcome.emailJobs.length) {
         try {

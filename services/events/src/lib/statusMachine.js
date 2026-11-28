@@ -1,10 +1,4 @@
 'use strict';
-/**
- * Event status workflow (Section 1.2 / 5.1, A4):
- *   draft -> published -> rsvp_closed -> completed
- *   draft | published | rsvp_closed -> cancelled
- * Anything else is an invalid transition and returns 409.
- */
 const { errors } = require('../../../../shared');
 
 const TRANSITIONS = Object.freeze({
@@ -15,9 +9,7 @@ const TRANSITIONS = Object.freeze({
   cancelled: Object.freeze([]),
 });
 
-/** Statuses in which event details may still be edited (A7). */
 const EDITABLE_STATUSES = Object.freeze(['draft', 'published', 'rsvp_closed']);
-/** Statuses in which guests can still be added or imported (A11, A12). */
 const GUEST_LIST_OPEN_STATUSES = Object.freeze(['draft', 'published']);
 
 function canTransition(from, to) {

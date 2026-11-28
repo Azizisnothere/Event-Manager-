@@ -1,15 +1,6 @@
 'use strict';
-/**
- * Middleware step 5: validation of body, query string and path parameters.
- * Unknown fields are rejected (Section 6.2). Cleaned values are placed in
- * req.valid.body / req.valid.query / req.valid.params; handlers read only those.
- */
 const { validate } = require('../validation');
 
-/**
- * @param {{ body?: object, query?: object, params?: object, bodyMinFields?: number }} schemas
- *   Omit a part to require it to be empty (no body / no query parameters).
- */
 function validateRequest(schemas = {}) {
   return function validateMiddleware(req, res, next) {
     try {

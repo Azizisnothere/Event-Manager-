@@ -1,11 +1,4 @@
 'use strict';
-/**
- * Authentication endpoints (Section 5.1, owner: Abdelaziz):
- *   POST /api/auth/register     create an organizer (role is ALWAYS organizer)      201 | 400, 409, 429
- *   POST /api/auth/login        verify credentials, return a JWT                     200 | 400, 401, 429
- *   POST /api/auth/staff-setup  staff set their password with the one-time token     200 | 400, 404, 409
- *   GET  /api/auth/me           current user's profile (used by the frontend)        200 | 401
- */
 const express = require('express');
 const {
   db,
@@ -28,7 +21,7 @@ const passwordRule = {
   trim: false,
   min: 1,
   max: LIMITS.PASSWORD_INPUT_MAX,
-  custom: passwordPolicyError, // Threat 1: minimum length 10
+  custom: passwordPolicyError,
 };
 
 const schemas = {
@@ -42,7 +35,6 @@ const schemas = {
   login: {
     body: {
       email: { type: 'email', required: true },
-      // No policy check on login: the error must stay generic (Threat 1).
       password: { type: 'string', required: true, trim: false, min: 1, max: LIMITS.PASSWORD_INPUT_MAX },
     },
   },
@@ -57,26 +49,21 @@ const schemas = {
 const ipKey = (req) => emCrypto.hashIp(req.clientIp);
 
 function invalidCredentials() {
-  // Threat 1: one generic message for unknown email, wrong password and inactive accounts.
   return errors.unauthenticated('Email or password is incorrect.', { audited: true });
 }
 
 function authRoutes() {
   const router = express.Router();
 
-  // ---------------------------------------------------------------------------
-  // POST /api/auth/register
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/auth/register',
-    rateLimit({ name: 'register-ip', ...REGISTER_RATE_LIMIT_PER_IP, key: ipKey }), // Threat 6
+    rateLimit({ name: 'register-ip', ...REGISTER_RATE_LIMIT_PER_IP, key: ipKey }),
     validateRequest(schemas.register),
     async (req, res) => {
       const { name, email, password } = req.valid.body;
-      const passwordHash = await hashPassword(password); // bcrypt cost 12 (Threat 1)
+      const passwordHash = await hashPassword(password);
       let user;
       try {
-        // Section 6.1: self-registration can only ever create an organizer.
         const { rows } = await db.query(
           `INSERT INTO users (name, email, password_hash, role, status)
            VALUES ($1, $2, $3, 'organizer', 'active')
@@ -91,7 +78,6 @@ function authRoutes() {
         throw err;
       }
       const token = await signAccessToken(user);
-      // password_hash is never returned (explicit column list above).
       res.status(201).json({
         user: { user_id: user.user_id, name: user.name, email: user.email, role: user.role },
         token,
@@ -101,22 +87,17 @@ function authRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // POST /api/auth/login
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/auth/login',
     validateRequest(schemas.login),
     async (req, res) => {
       const { email, password } = req.valid.body;
-      const counterKey = `login#${emCrypto.emailKeyHash(email)}`; // no plain email in DynamoDB
+      const counterKey = `login#${emCrypto.emailKeyHash(email)}`;
 
-      // Threat 1: more than 5 failures in 15 minutes -> 429 (counter in DynamoDB with TTL).
       let failures;
       try {
         failures = await requestGuard.peek(counterKey);
       } catch (err) {
-        // Fail closed: without the counter brute-force protection cannot be guaranteed.
         logger.error('login_throttle_unavailable', { error: err });
         throw errors.serviceUnavailable('Login is temporarily unavailable. Please try again shortly.');
       }
@@ -168,16 +149,13 @@ function authRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // POST /api/auth/staff-setup
-  // ---------------------------------------------------------------------------
   router.post(
     '/api/auth/staff-setup',
     rateLimit({ name: 'staff-setup-ip', ...REGISTER_RATE_LIMIT_PER_IP, key: ipKey }),
     validateRequest(schemas.staffSetup),
     async (req, res) => {
       const { token, password } = req.valid.body;
-      const tokenHash = emCrypto.hashToken(token); // stored hashed, never raw
+      const tokenHash = emCrypto.hashToken(token);
       const notFound = () => errors.notFound('This setup link is invalid or has expired.', 'SETUP_TOKEN_INVALID');
 
       const { rows } = await db.query(
@@ -188,15 +166,12 @@ function authRoutes() {
       );
       const staff = rows[0];
       if (!staff) throw notFound();
-      // Setup token valid for 48 hours.
       if (!staff.setup_expires_at || new Date(staff.setup_expires_at).getTime() <= Date.now()) throw notFound();
       if (staff.status !== 'pending_setup') {
         throw errors.conflict('This account has already been set up or is disabled.', 'ACCOUNT_NOT_PENDING');
       }
 
       const passwordHash = await hashPassword(password);
-      // Single-use: the token hash is cleared in the same statement, and the WHERE clause
-      // makes a concurrent second use update nothing.
       const result = await db.query(
         `UPDATE users
             SET password_hash = $1, status = 'active', setup_token_hash = NULL, setup_expires_at = NULL
@@ -208,9 +183,6 @@ function authRoutes() {
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // GET /api/auth/me
-  // ---------------------------------------------------------------------------
   router.get(
     '/api/auth/me',
     authenticate(),

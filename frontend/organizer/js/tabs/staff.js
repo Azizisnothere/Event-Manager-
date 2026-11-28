@@ -1,4 +1,3 @@
-/* Staff tab: create staff accounts (setup link by email), assign and unassign. */
 (function () {
   'use strict';
   var EM = window.EM;

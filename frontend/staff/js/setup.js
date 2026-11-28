@@ -8,8 +8,6 @@
   var successBox = ui.$('#setup-success');
   var fields = ui.$('#setup-fields');
 
-  // The one-time token arrives in the URL fragment (#t=...), which is never sent to the server
-  // that hosts this page. Remove it from the address bar right away.
   var match = /(?:^#|&)t=([A-Za-z0-9_-]{43})/.exec(window.location.hash);
   var token = match ? match[1] : sessionStorage.getItem('em_setup_token');
   if (match) {

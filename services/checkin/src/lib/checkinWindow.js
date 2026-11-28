@@ -1,9 +1,4 @@
 'use strict';
-/**
- * Check-in window (A23): opens CHECKIN_OPENS_MINUTES_BEFORE_START before start_time and closes
- * CHECKIN_CLOSES_MINUTES_AFTER_END after end_time, and only while the event is published or
- * rsvp_closed (never draft, completed or cancelled).
- */
 const { constants, utils } = require('../../../../shared');
 
 const { CHECKIN_OPENS_MINUTES_BEFORE_START, CHECKIN_CLOSES_MINUTES_AFTER_END } = constants;

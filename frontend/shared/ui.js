@@ -1,14 +1,6 @@
-/*
- * DOM helpers. Every piece of user or server data is inserted with textContent or as a text
- * node - innerHTML is never used (Section 6.2 "Data protection", Threat 5: stored XSS).
- */
 (function () {
   'use strict';
 
-  /**
-   * el('button', { class: 'btn', text: 'Save', attrs: { type: 'submit' }, on: { click: fn } }, child1, ...)
-   * Children may be nodes, strings (become text nodes), arrays, null or false.
-   */
   function el(tag, props) {
     var node = document.createElement(tag);
     props = props || {};
@@ -18,7 +10,7 @@
       Object.keys(props.attrs).forEach(function (k) {
         var v = props.attrs[k];
         if (v === false || v === null || v === undefined) return;
-        if (/^on/i.test(k) || k === 'style' || k === 'srcdoc') return; // no inline handlers or styles
+        if (/^on/i.test(k) || k === 'style' || k === 'srcdoc') return;
         node.setAttribute(k, v === true ? '' : String(v));
       });
     }
@@ -36,7 +28,6 @@
     return node;
   }
 
-  /** append(parent, child1, child2, ...) - children may be nodes, strings, arrays, null or false. */
   function append(parent) {
     for (var i = 1; i < arguments.length; i += 1) appendOne(parent, arguments[i]);
     return parent;
@@ -81,7 +72,6 @@
     return diff >= 0 ? 'in ' + unit : unit + ' ago';
   }
 
-  /** ISO string -> value for <input type="datetime-local"> in the browser's time zone. */
   function toLocalInput(iso) {
     if (!iso) return '';
     var d = new Date(iso);
@@ -91,7 +81,6 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
 
-  /** <input type="datetime-local"> value -> ISO 8601 with Z (what the API requires). */
   function fromLocalInput(value) {
     if (!value) return null;
     var d = new Date(value);
@@ -132,9 +121,6 @@
     return el('span', { class: 'badge badge-' + String(status || 'none').replace(/[^a-z_]/g, '') + (extraClass ? ' ' + extraClass : ''), text: statusLabel(status) });
   }
 
-  /**
-   * Simple table. columns: [{ label, render: (row) => node|string }]
-   */
   function table(columns, rows, emptyText) {
     var thead = el('thead', null, el('tr', null, columns.map(function (c) { return el('th', { text: c.label, attrs: { scope: 'col' } }); })));
     var tbody = el('tbody');
@@ -179,7 +165,6 @@
     }
   }
 
-  /** Asks for a reason; returns null if cancelled or too short. */
   function askReason(message, min) {
     var value = window.prompt(message);
     if (value === null) return null;
@@ -202,7 +187,6 @@
     };
   }
 
-  /** Prev / next pager. state: { offset, limit, total }, onChange(newOffset) */
   function pager(state, onChange) {
     var from = state.total ? state.offset + 1 : 0;
     var to = Math.min(state.offset + state.limit, state.total);
@@ -215,7 +199,6 @@
     );
   }
 
-  /** Openstreetmap link from coordinates. */
   function mapUrl(lat, lng) {
     if (typeof lat !== 'number' || typeof lng !== 'number') return null;
     return 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lng + '#map=17/' + lat + '/' + lng;

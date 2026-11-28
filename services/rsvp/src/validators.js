@@ -1,7 +1,4 @@
 'use strict';
-/**
- * Request schemas for the RSVP service (Section 6.2 "Input validation", Section 5.2 step 3).
- */
 const { constants, validation, errors } = require('../../../shared');
 
 const { LIMITS, RSVP_STATUSES } = constants;
@@ -25,7 +22,7 @@ const schemas = {
       party_size: partySize,
       dietary_notes: dietaryNotes,
     },
-    bodyMinFields: 1, // at least one change (the Turnstile token comes in the X-Turnstile-Token header)
+    bodyMinFields: 1,
   },
   guestView: { body: {} },
   listRsvps: {
@@ -47,10 +44,6 @@ const schemas = {
   },
 };
 
-/**
- * Validation step that needs the authenticated invitation: party_size must be between 1 and
- * 1 + plus_one_allowance (Section 5.2 step 3). Runs after the schema check, before the handler.
- */
 function partySizeWithinAllowance(req, res, next) {
   const b = req.valid.body;
   const max = 1 + req.invitation.plus_one_allowance;

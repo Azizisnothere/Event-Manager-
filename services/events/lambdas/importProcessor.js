@@ -1,21 +1,11 @@
 'use strict';
-/**
- * import-fn: triggered by S3 ObjectCreated on the imports bucket (em-guest-imports).
- * Reads the uploaded file (max 1 MB) and hands it to src/lib/csvImport.js, which validates every
- * row and records the result in guest_list_imports (Section 5.3, Threat 5).
- */
 const { db, s3, constants, logger, config } = require('../../../shared');
 const { importCsvText, markFailed } = require('../src/lib/csvImport');
 
 const { CSV_IMPORT_MAX_BYTES } = constants;
 const log = logger.child({ function_role: 'import-processor' });
 
-/**
- * Processes one uploaded object. Exported for the local dev server.
- * @returns {Promise<'processed'|'ignored'|'failed'>}
- */
 async function processImportObject(bucket, key) {
-  // Claim the import: only a pending import is processed (S3 can deliver an event twice).
   const { rows: claimed } = await db.query(
     `UPDATE guest_list_imports SET status = 'processing'
       WHERE s3_key = $1 AND status = 'pending'
@@ -58,7 +48,6 @@ exports.handler = async (event, context) => {
       log.warn('import_unexpected_bucket');
       continue;
     }
-    // S3 event keys are URL-encoded with '+' for spaces.
     const key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
     if (!/^imports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.csv$/.test(key)) {
       log.warn('import_unexpected_key');

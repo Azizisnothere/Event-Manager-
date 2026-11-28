@@ -1,8 +1,3 @@
-/*
- * API client: fetch with async/await, Bearer header for organizers/staff, and one
- * consistent way to show errors. The JWT is kept in sessionStorage (cleared when the tab
- * closes) and never logged. All rendering of server data uses textContent (Threat 5).
- */
 (function () {
   'use strict';
 
@@ -43,7 +38,7 @@
     },
   };
 
-  var loginPage = null; // set by requireLogin so a 401 can send the user back to log in
+  var loginPage = null;
 
   function buildUrl(path, query) {
     var url = (window.EM_CONFIG.API_BASE_URL || '') + path;
@@ -59,11 +54,6 @@
     return url;
   }
 
-  /**
-   * @param {string} path e.g. '/api/events'
-   * @param {{ method?: string, body?: object, query?: object, auth?: boolean, turnstileToken?: string }} [opts]
-   *   turnstileToken is sent in the X-Turnstile-Token header (guest RSVP routes).
-   */
   async function api(path, opts) {
     opts = opts || {};
     var method = opts.method || 'GET';
@@ -131,7 +121,6 @@
     return 'Something went wrong. Please try again.';
   }
 
-  /** Shows an error (or clears it when err is null) in the given container. */
   function showError(container, err) {
     if (!container) return;
     container.textContent = err ? errorText(err) : '';
@@ -149,10 +138,6 @@
     container.setAttribute('role', 'status');
   }
 
-  /**
-   * Redirects to the login page unless a session exists with one of the given roles.
-   * The backend enforces every rule again; this only avoids showing a broken page.
-   */
   function requireLogin(roles, page) {
     loginPage = page;
     var user = session.user;

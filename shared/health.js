@@ -1,5 +1,3 @@
-// shared/health.js  GET /api/health -> proves the API, the database and Secrets Manager are reachable (proposal 3.5).
-// 200 {status:'ok'} or 503 {status:'degraded'}; never returns error details or secrets.
 const express = require('express');
 const { checkDatabase } = require('./db');
 const { checkSecretsManager } = require('./secrets');
@@ -21,7 +19,7 @@ router.get('/api/health', async (req, res) => {
   const checks = { api: 'ok', database: 'unknown', secrets: 'unknown' };
   const [dbResult, secretsResult] = await Promise.allSettled([withTimeout(checkDatabase()), withTimeout(checkSecretsManager())]);
   checks.database = dbResult.status === 'fulfilled' ? 'ok' : 'error';
-  checks.secrets = secretsResult.status === 'fulfilled' ? secretsResult.value : 'error'; // 'ok' on Lambda, 'local-env' on the PC
+  checks.secrets = secretsResult.status === 'fulfilled' ? secretsResult.value : 'error';
   if (dbResult.status === 'rejected') logger.error('health database failed', { error: dbResult.reason });
   if (secretsResult.status === 'rejected') logger.error('health secrets failed', { error: secretsResult.reason });
 

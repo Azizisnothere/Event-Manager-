@@ -1,8 +1,4 @@
 'use strict';
-/**
- * Request schemas for the Event & Guest List service (Section 6.2 "Input validation").
- * Unknown fields are rejected by the shared validator.
- */
 const { constants, validation, errors } = require('../../../shared');
 
 const { LIMITS, PLUS_ONE_MAX, MAX_GUESTS_PER_REQUEST, EVENT_STATUSES, INVITATION_STATUSES } = constants;
@@ -72,7 +68,6 @@ const schemas = {
   },
   invitationParams: { params: { eventId, invitationId: { type: 'uuid', required: true } } },
   createImport: { params: { eventId }, body: {} },
-  // Pasted guest list: the same CSV format as the S3 upload; the route allows a 64 KB body.
   bulkImport: { params: { eventId }, body: { csv: { type: 'string', required: true, max: 60000, multiline: true, trim: false } } },
   importParams: { params: { eventId, importId: { type: 'uuid', required: true } } },
   plusOneRequest: {
@@ -100,15 +95,8 @@ const schemas = {
   unassignStaff: { params: { eventId, userId: { type: 'uuid', required: true } } },
 };
 
-/** Guest row schema reused by the CSV import processor (same rules as manual entry). */
 const csvGuestSchema = guestRule.schema;
 
-/**
- * Cross-field time rules (Section 6.2): start in the future, end after start,
- * RSVP deadline before start and in the future.
- * @param {{ start_time: Date, end_time: Date, rsvp_deadline: Date }} t final values
- * @param {{ requireFutureStart: boolean, requireFutureDeadline: boolean }} opts
- */
 function assertEventTimes(t, opts) {
   const now = Date.now();
   const details = [];

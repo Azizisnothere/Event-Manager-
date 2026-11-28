@@ -1,9 +1,3 @@
-// shared/logger.js  Structured JSON logs -> stdout -> CloudWatch Logs on Lambda
-// Never log passwords, JWTs, invitation tokens, emails, dietary notes or request bodies.  [Threat 8]
-// Requests are logged by ROUTE PATTERN (/api/invitations/:token), never by the real URL.
-// Two layers of protection:
-//   1. a field whose KEY looks sensitive is replaced with '[redacted]';
-//   2. string VALUES are scrubbed of email addresses, JWTs and Bearer tokens.
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
 const SENSITIVE = /pass|token|secret|authorization|cookie|email|dietary|api[-_]?key|jwt|check_in_code|setup_link|link|url|signature|turnstile/i;
 const EMAIL_IN_TEXT = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[A-Za-z]{2,}/g;
@@ -20,8 +14,6 @@ function scrub(text) {
   return out;
 }
 
-// Errors: name, message, code and a short stack only. pg's err.detail can hold row values
-// (an email in a unique violation), so it is never logged.
 function serializeError(error) {
   if (!error || typeof error !== 'object') return { message: String(error) };
   const out = {
@@ -69,9 +61,7 @@ function createLogger(base = {}) {
     info: (msg, fields) => write('info', msg, fields, base),
     warn: (msg, fields) => write('warn', msg, fields, base),
     error: (msg, fields) => write('error', msg, fields, base),
-    // Security events get a fixed "event" key so a CloudWatch metric filter can count them.
     security: (event, fields) => write('warn', 'security', { event, ...fields }, base),
-    // child({ consumer: 'rsvp' }) adds fixed fields to every line (background functions)
     child: (more) => createLogger({ ...base, ...more }),
     sanitize: redact,
     serializeError

@@ -1,16 +1,4 @@
 'use strict';
-/**
- * Messages between services (Section 5.2).
- * The Event service publishes domain events to the SNS topic DOMAIN_EVENTS_TOPIC_ARN
- * (em-domain-events). Infra subscribes the queues em-rsvp-events and em-checkin-events,
- * filtering on the "type" message attribute.
- *
- * Envelope (A38):
- *   { message_id, type, event_id, occurred_at, data }
- *
- * Local development without SNS/SQS: messages are dispatched in-process to handlers that
- * the local dev server registers with registerLocalHandler('domain' | 'email', fn).
- */
 const crypto = require('crypto');
 const config = require('./config');
 const { logger } = require('./logger');
@@ -20,9 +8,8 @@ const requestGuard = require('./requestGuard');
 const { isUuid } = require('./utils');
 
 const VALID_TYPES = new Set(Object.values(MESSAGE_TYPES));
-const localHandlers = new Map(); // channel -> Array<fn>
+const localHandlers = new Map();
 
-/** Registers an in-process handler (local dev server only). */
 function registerLocalHandler(channel, fn) {
   if (!localHandlers.has(channel)) localHandlers.set(channel, []);
   localHandlers.get(channel).push(fn);
@@ -32,7 +19,6 @@ function hasLocalHandlers(channel) {
   return (localHandlers.get(channel) || []).length > 0;
 }
 
-/** Runs local handlers after the current request finishes (mimics async delivery). */
 function dispatchLocal(channel, payload) {
   const handlers = localHandlers.get(channel) || [];
   if (!handlers.length) return false;
@@ -56,12 +42,6 @@ function buildEnvelope(type, eventId, data = {}) {
   };
 }
 
-/**
- * Publishes a domain event. Call AFTER the database transaction has committed.
- * @param {string} type one of MESSAGE_TYPES
- * @param {string} eventId
- * @param {object} [data] must not contain emails, tokens or dietary notes
- */
 async function publishDomainEvent(type, eventId, data = {}) {
   const envelope = buildEnvelope(type, eventId, data);
   const topicArn = config.domainEventsTopicArn;
@@ -83,10 +63,6 @@ async function publishDomainEvent(type, eventId, data = {}) {
   return envelope;
 }
 
-/**
- * Extracts the envelope from an SQS record body. Supports raw message delivery and
- * the standard SNS notification wrapper.
- */
 function parseDomainEnvelope(record) {
   let body = JSON.parse(record.body);
   if (body && body.Type === 'Notification' && typeof body.Message === 'string') {
@@ -102,12 +78,6 @@ function parseDomainEnvelope(record) {
   return { ...body, data: body.data || {} };
 }
 
-/**
- * Builds a consumer for domain events.
- * @param {{ name: string, handlers: Record<string, (envelope: object) => Promise<void>> }} opts
- * @returns {{ processEnvelope: (envelope: object) => Promise<'processed'|'duplicate'|'ignored'>,
- *             processRecord: (record: object) => Promise<string> }}
- */
 function createDomainEventConsumer({ name, handlers }) {
   const log = logger.child({ consumer: name });
 
@@ -117,7 +87,6 @@ function createDomainEventConsumer({ name, handlers }) {
       log.info('domain_event_ignored', { type: envelope.type, message_id: envelope.message_id });
       return 'ignored';
     }
-    // SNS fans the same message_id out to several queues, so the key includes the consumer name.
     const idemKey = `${name}#${envelope.message_id}`;
     const claim = await requestGuard.claimIdempotencyKey(idemKey);
     if (claim === 'duplicate') {

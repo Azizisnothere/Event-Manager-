@@ -1,7 +1,3 @@
-// Builds infra/.run/lambda.zip for the Lambda functions (like "npm run zip" in Lab 7):
-// shared/, services/, package.json and ONLY the production node_modules.
-// Never includes .env, the frontend, tests or the deploy tools.
-// Run: node infra/zip-lambda.js
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');

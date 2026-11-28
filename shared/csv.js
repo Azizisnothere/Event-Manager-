@@ -1,10 +1,4 @@
 'use strict';
-/**
- * CSV helpers.
- * - parseCsv: RFC 4180 parser (quotes, escaped quotes, CRLF/LF, UTF-8 BOM) used by the import processor.
- * - toCsv / escapeCsvCell: writer used for the attendance report. Cells that a spreadsheet would
- *   treat as a formula (= + - @, tab, CR) are prefixed with a single quote (Threat 5: formula injection).
- */
 
 class CsvParseError extends Error {
   constructor(message, line) {
@@ -14,12 +8,6 @@ class CsvParseError extends Error {
   }
 }
 
-/**
- * @param {string} text
- * @param {{ maxRows?: number, maxFieldLength?: number }} [opts] maxRows counts the header row too
- *   (pass CSV_IMPORT_MAX_ROWS + 1 to allow CSV_IMPORT_MAX_ROWS data rows)
- * @returns {{ rows: Array<{ line: number, cells: string[] }> }} data rows include the header row as rows[0]
- */
 function parseCsv(text, opts = {}) {
   const maxRows = opts.maxRows || Infinity;
   const maxField = opts.maxFieldLength || 2000;
@@ -95,7 +83,6 @@ function parseCsv(text, opts = {}) {
 
 const FORMULA_START = /^[=+\-@\t\r]/;
 
-/** Escapes one cell for safe opening in Excel / Sheets (Threat 5). */
 function escapeCsvCell(value) {
   if (value === null || value === undefined) return '';
   let s = value instanceof Date ? value.toISOString() : String(value);
@@ -104,7 +91,6 @@ function escapeCsvCell(value) {
   return s;
 }
 
-/** @param {Array<Array<any>>} rows first row is the header */
 function toCsv(rows) {
   return `${rows.map((r) => r.map(escapeCsvCell).join(',')).join('\r\n')}\r\n`;
 }

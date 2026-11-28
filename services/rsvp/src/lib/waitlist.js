@@ -1,14 +1,4 @@
 'use strict';
-/**
- * Waitlist engine (owner: Abdelaziz).
- * - First-come by waitlisted_at; promotion is first-fit (A18): a party too large for the free
- *   seats is skipped but keeps its place, and the next party that fits is promoted. A party
- *   is never split.
- * - Runs in the SAME transaction that frees seats (guest cancellation, party-size decrease,
- *   organizer cancellation; and in the consumer for capacity increase / revocation, A1),
- *   while that transaction holds the event row lock.
- * - Automatic promotion only while the event is published or rsvp_closed and has not started (A19).
- */
 const { confirmedHeadcount, newCheckInCode } = require('./capacity');
 
 function promotionAllowed(event) {
@@ -32,12 +22,6 @@ async function confirmPromotion(client, event, row) {
   };
 }
 
-/**
- * Promotes as many waitlisted parties as the free seats allow.
- * @param {import('pg').PoolClient} client transaction holding the event row lock
- * @param {object} event locked event row (capacity, status, start_time)
- * @returns {Promise<Array<{ rsvp_id, invitation_id, party_size, check_in_code, guest_name, guest_email }>>}
- */
 async function promoteFromWaitlist(client, event) {
   if (!promotionAllowed(event)) return [];
   let free = event.capacity - (await confirmedHeadcount(client, event.event_id));
@@ -62,10 +46,6 @@ async function promoteFromWaitlist(client, event) {
   return promoted;
 }
 
-/**
- * Manual promotion of one waitlisted RSVP by the organizer (seats must be free).
- * @returns {Promise<object|null>} promoted row, or null if it does not fit
- */
 async function promoteOne(client, event, rsvpRow) {
   const free = event.capacity - (await confirmedHeadcount(client, event.event_id));
   if (rsvpRow.party_size > free) return null;

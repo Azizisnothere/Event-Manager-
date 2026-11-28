@@ -1,9 +1,4 @@
 'use strict';
-/**
- * Email job builders for the RSVP service. Jobs are queued after COMMIT and sent by the
- * notifier (services/events/lambdas/notifier.js). Threat 2: every change is confirmed by
- * email to the invitee.
- */
 const { constants, utils, emailQueue, logger } = require('../../../../shared');
 
 const T = constants.EMAIL_TEMPLATES;
@@ -57,7 +52,6 @@ function promotedJobs(event, promoted) {
   );
 }
 
-/** Queues jobs; an email failure never undoes a committed reply. */
 async function queue(jobs) {
   if (!jobs.length) return 0;
   try {

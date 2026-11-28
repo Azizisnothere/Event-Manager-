@@ -1,9 +1,3 @@
-// infra/monitoring-check.js  Monitoring evidence for report section 11.   npm run monitoring
-// 1. Causes suspicious activity on the DEPLOYED API: 6 failed logins for one account and 3 requests
-//    with a fake token.
-// 2. Shows what CloudWatch saw: the matching log lines (a filter), the EventManager/Security metrics,
-//    and the state of the alarm em-repeated-failed-logins.
-// Uses test accounts on example.test only; sends no emails.
 require('dotenv').config({ quiet: true, path: require('path').join(__dirname, '..', '.env') });
 
 const fs = require('fs');
@@ -76,8 +70,6 @@ async function metricSum(name, since) {
   }
 
   console.log('\n4) Alarm');
-  // Real AWS evaluates an alarm every period by itself. Floci evaluates it when the alarm is saved, so after
-  // the current 5-minute window has closed we save it again, unchanged, to make Floci evaluate it now.
   const waitMs = 300000 - (Date.now() % 300000) + 15000;
   console.log(`   waiting ${Math.round(waitMs / 1000)} s for the current 5-minute window to close...`);
   await sleep(waitMs);

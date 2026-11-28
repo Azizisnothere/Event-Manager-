@@ -1,10 +1,3 @@
-// Local helper for the public website tunnel (step 13).
-// Cloudflare quick tunnels send their own host name, so Floci shows its dashboard
-// instead of the em-frontend website. This tiny proxy listens on localhost:8081 and
-// forwards every request to Floci with the website host name, exactly like:
-//   curl -H "Host: em-frontend.s3-website-us-east-1.localhost" http://localhost:4566/
-// It only serves the website bucket (read-only); it never exposes the rest of Floci.
-// Run: node infra/web-proxy.js        then: cloudflared tunnel --url http://localhost:8081
 const http = require('http');
 
 const PORT = 8081;
@@ -12,7 +5,7 @@ const FLOCI = { host: '127.0.0.1', port: 4566 };
 const SITE_HOST = 'em-frontend.s3-website-us-east-1.localhost';
 
 http.createServer((req, res) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {   // the website is read-only
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405, { 'Content-Type': 'text/plain' });
     return res.end('Method not allowed');
   }

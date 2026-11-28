@@ -1,10 +1,3 @@
-// dev-server.js  Runs the whole app on the PC  (npm run dev)
-//   API       http://localhost:3000   (PORT)          every service router, as API Gateway would route them
-//   Frontend  http://localhost:8080   (FRONTEND_PORT) the static pages in frontend/
-// Without SNS/SQS (no DOMAIN_EVENTS_TOPIC_ARN / NOTIFICATIONS_QUEUE_URL in .env), messages are delivered
-// in-process: domain events go to the RSVP consumer and the report generator, email jobs go to the
-// notifier, which writes each email to dev/outbox/*.html unless DEV_SEND_REAL_EMAIL=true.
-// NOT deployed. Refuses to start with NODE_ENV=production.
 require('dotenv').config({ quiet: true });
 
 const fs = require('fs');
@@ -26,7 +19,6 @@ const { createApp, messaging, db, s3, config, logger } = require('./shared');
 const { LARGE_BODY_PATHS } = require('./shared/constants');
 const health = require('./shared/health');
 
-// Each service adds its routers to this list (services/<name>/index.js).
 const routers = [
   health,
   ...require('./services/auth'),
@@ -41,11 +33,8 @@ const notifier = require('./services/events/lambdas/notifier');
 const scheduler = require('./services/events/lambdas/scheduler');
 const importProcessor = require('./services/events/lambdas/importProcessor');
 
-// ---------------------------------------------------------------------------
-// In-process messaging (replaces SNS -> SQS -> Lambda on the PC)
-// ---------------------------------------------------------------------------
 const OUTBOX_DIR = path.join(__dirname, 'dev', 'outbox');
-const outbox = []; // last 200 email jobs, for the dev outbox API below
+const outbox = [];
 const realEmail = process.env.DEV_SEND_REAL_EMAIL === 'true';
 
 if (!config.domainEventsTopicArn) {
@@ -71,13 +60,8 @@ if (!config.notificationsQueueUrl) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// API on PORT
-// ---------------------------------------------------------------------------
 const app = createApp(routers, { largeBodyPaths: LARGE_BODY_PATHS });
 
-// Dev-only outbox API so Postman can read the invitation / staff-setup link of a test email.
-// It is a separate tiny app in front of the real one, so it never exists on Lambda.
 const devApp = express();
 devApp.disable('x-powered-by');
 if (process.env.DEV_OUTBOX_API !== 'false') {
@@ -103,9 +87,6 @@ devApp.listen(PORT, () => {
   console.log(`  Emails: ${realEmail ? 'sent with Brevo' : `written to ${path.relative(__dirname, OUTBOX_DIR)}/`}`);
 });
 
-// ---------------------------------------------------------------------------
-// Frontend on FRONTEND_PORT (the S3 website in the cloud)
-// ---------------------------------------------------------------------------
 if (process.env.SERVE_FRONTEND !== 'false') {
   const web = express();
   web.disable('x-powered-by');
@@ -123,15 +104,11 @@ if (process.env.SERVE_FRONTEND !== 'false') {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Background jobs (EventBridge schedule and the S3 trigger in the cloud)
-// ---------------------------------------------------------------------------
 const schedulerSeconds = Number(process.env.DEV_SCHEDULER_SECONDS) || 60;
 setInterval(() => {
   scheduler.runScheduler().catch((error) => logger.error('dev scheduler failed', { error }));
 }, Math.max(5, schedulerSeconds) * 1000);
 
-// With Floci (IMPORTS_BUCKET set) there is no S3 trigger, so pending uploads are polled.
 if (config.importsBucket) {
   setInterval(async () => {
     try {
@@ -142,7 +119,7 @@ if (config.importsBucket) {
         try {
           await s3.headObject({ bucket: config.importsBucket, key: r.s3_key });
         } catch {
-          continue; // not uploaded yet
+          continue;
         }
         await importProcessor.processImportObject(config.importsBucket, r.s3_key);
       }

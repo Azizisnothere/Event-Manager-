@@ -1,4 +1,3 @@
-/* Result view: check-in code when confirmed, waitlist position when waitlisted. */
 (function () {
   'use strict';
   var EM = window.EM;

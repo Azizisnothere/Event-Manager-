@@ -1,13 +1,4 @@
 'use strict';
-/**
- * Geoapify Geocoding client (Section 1.5). Validates the venue address and returns
- * coordinates for the map link; an event cannot be published until its venue is verified.
- * Results (A6):
- *   { status: 'found', lat, lng, formatted }   address resolved
- *   { status: 'not_found' }                     no usable match -> 422 for the caller
- *   { status: 'unavailable' }                   network / quota / config problem -> saved unverified
- * The request URL contains the API key, so it is never logged (Threat 8).
- */
 const { secrets, config, logger } = require('../../../../shared');
 
 const DEFAULT_URL = 'https://api.geoapify.com/v1/geocode/search';
@@ -15,12 +6,10 @@ const TIMEOUT_MS = 4000;
 const MIN_CONFIDENCE = 0.3;
 
 function apiUrl() {
-  // Override only for local testing against a stub; ignored in production.
   if (!config.isProduction && process.env.GEOAPIFY_API_URL) return process.env.GEOAPIFY_API_URL;
   return DEFAULT_URL;
 }
 
-/** @param {string} address */
 async function geocodeAddress(address) {
   if (!secrets.isSecretConfigured('geoapifyApiKey')) {
     logger.warn('geoapify_not_configured');

@@ -1,7 +1,4 @@
 'use strict';
-/**
- * Request schemas for the Check-in service (Section 6.2 "Input validation").
- */
 const { constants, validation, crypto: emCrypto } = require('../../../shared');
 
 const { LIMITS } = constants;

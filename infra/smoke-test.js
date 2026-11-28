@@ -1,8 +1,3 @@
-// infra/smoke-test.js  Calls the DEPLOYED API once per Lambda function to check the deployment and the IAM
-// policies. Uses the API address in infra/deploy-output.json (written by npm run deploy).   npm run smoke
-// It sends no emails: guests use example.test addresses and no event is published.
-// With IAM enforcement on (infra/README.md), a missing permission shows up here as a 500 and in the
-// Floci log as AccessDenied (em-iam-test.bat collects both).
 const fs = require('fs');
 const path = require('path');
 
@@ -54,7 +49,6 @@ async function call(name, fn, method, url, body, token, expect) {
   await call('guest link with bad token', 'rsvp', 'GET', '/api/invitations/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', null, null, 404);
   await call('live attendance', 'checkin', 'GET', `/api/events/${id}/attendance/live`, null, token, 200);
   await call('check-in list', 'checkin', 'GET', `/api/events/${id}/check-ins`, null, token, 200);
-  // Cancelling publishes event.cancelled to SNS -> em-rsvp-events -> em-rsvp-consumer-fn (check the Floci log)
   await call('cancel event (SNS publish)', 'events', 'PATCH', `/api/events/${id}/status`, { status: 'cancelled' }, token, 200);
   await call('no token -> 401', 'events', 'GET', '/api/events', null, null, 401);
 
